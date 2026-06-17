@@ -326,7 +326,7 @@ function MedicineSection({
                   <Link href={`/medicines/${item.medicine.id}`} className="text-base font-semibold text-ink hover:text-trust">
                     {item.medicine.name}
                   </Link>
-                  <p className="mt-1 text-sm text-muted">{item.medicine.genericName ?? item.medicine.form ?? "Medicine"}</p>
+                  <p className="mt-1 text-sm text-muted">{item.medicine.composition ?? item.medicine.genericName ?? item.medicine.form ?? "Medicine"}</p>
                 </div>
                 <span className="w-fit rounded-md border border-line bg-white px-2 py-1 text-xs font-semibold uppercase tracking-[0.08em] text-muted">
                   {item.medicine.prescriptionStatus}

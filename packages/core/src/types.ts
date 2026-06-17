@@ -22,9 +22,14 @@ export interface Symptom {
 export interface Medicine {
   id: string;
   name: string;
+  composition?: string;
   genericName?: string;
+  manufacturer?: string;
   form?: string;
   strength?: string;
+  packaging?: string;
+  mrp?: string;
+  price?: string;
   imageUrl?: string;
   prescriptionStatus: PrescriptionStatus;
   indications: string[];

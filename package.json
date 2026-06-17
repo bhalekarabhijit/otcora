@@ -15,7 +15,8 @@
     "test:watch": "vitest",
     "data:sitemap": "npm run sitemap -w @otcora/data",
     "data:import-csv": "npm run import-csv -w @otcora/data",
-    "data:scrape-missing": "npm run scrape-missing -w @otcora/data"
+    "data:scrape-missing": "npm run scrape-missing -w @otcora/data",
+    "data:build-core-catalog": "npm run build-core-catalog -w @otcora/data"
   },
   "devDependencies": {
     "@types/node": "^22.10.2",

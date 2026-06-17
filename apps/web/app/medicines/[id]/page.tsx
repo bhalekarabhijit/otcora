@@ -29,12 +29,19 @@ export default async function MedicinePage({ params }: PageProps) {
             <div>
               <p className="text-sm font-medium uppercase tracking-[0.12em] text-muted">{medicine.form ?? "Medicine"}</p>
               <h1 className="mt-2 text-3xl font-semibold tracking-normal text-ink">{medicine.name}</h1>
-              {medicine.genericName ? <p className="mt-2 text-muted">{medicine.genericName}</p> : null}
+              {medicine.composition ? <p className="mt-2 max-w-2xl text-muted">{medicine.composition}</p> : null}
             </div>
             <span className={`inline-flex w-fit items-center gap-2 rounded-md px-3 py-2 text-sm font-semibold ${isOtc ? "bg-clinical text-trust" : "bg-amber-50 text-saffron"}`}>
               {isOtc ? <ShieldCheck aria-hidden="true" size={16} /> : <FileText aria-hidden="true" size={16} />}
               {isOtc ? "OTC" : "Prescription"}
             </span>
+          </div>
+
+          <div className="mt-8 grid gap-3 rounded-md border border-line bg-surface p-4 text-sm text-muted sm:grid-cols-2">
+            {medicine.manufacturer ? <p><strong className="text-ink">Manufacturer:</strong> {medicine.manufacturer}</p> : null}
+            {medicine.packaging ? <p><strong className="text-ink">Pack:</strong> {medicine.packaging}</p> : null}
+            {medicine.price ? <p><strong className="text-ink">Price:</strong> Rs. {medicine.price}</p> : null}
+            {medicine.mrp ? <p><strong className="text-ink">MRP:</strong> Rs. {medicine.mrp}</p> : null}
           </div>
 
           <div className="mt-8 grid gap-6 sm:grid-cols-2">

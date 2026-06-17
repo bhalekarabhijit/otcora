@@ -24,9 +24,9 @@ export function recommendMedicines(request: RecommendationRequest): Recommendati
   const avoid = ranked.filter((item) => shouldAvoid(item, request));
 
   return {
-    otc: ranked.filter((item) => item.medicine.prescriptionStatus === "otc" && !avoid.includes(item)),
-    prescription: ranked.filter((item) => item.medicine.prescriptionStatus === "prescription" && !avoid.includes(item)),
-    avoid,
+    otc: ranked.filter((item) => item.medicine.prescriptionStatus === "otc" && !avoid.includes(item)).slice(0, 24),
+    prescription: ranked.filter((item) => item.medicine.prescriptionStatus === "prescription" && !avoid.includes(item)).slice(0, 36),
+    avoid: avoid.slice(0, 12),
     seekCare,
     disclaimer
   };
@@ -44,11 +44,14 @@ function toRecommendationItem(
 
   return {
     medicine,
-    matchScore: matchedSymptoms.length * 10,
+    matchScore: matchedSymptoms.length > 0
+      ? matchedSymptoms.length * 10 + (medicine.prescriptionStatus === "otc" ? 2 : 0)
+      : 0,
     reasons: matchedSymptoms.map((symptomId) => `May help with ${symptomLabel(symptomId)} symptoms.`),
     cautions: [
       ...medicine.warnings,
       ...(medicine.prescriptionStatus === "prescription" ? ["Requires a valid prescription and doctor guidance."] : []),
+      ...(medicine.prescriptionStatus === "unknown" ? ["Prescription status is not confirmed in the source data."] : []),
       ...(allergyHit ? ["Possible allergy match based on your context."] : [])
     ]
   };
@@ -61,7 +64,10 @@ function shouldAvoid(item: RecommendationItem, request: RecommendationRequest): 
   if (!request.context) {
     return false;
   }
-  const medicineText = [item.medicine.name, item.medicine.genericName].filter(Boolean).join(" ").toLowerCase();
+  const medicineText = [item.medicine.name, item.medicine.genericName, item.medicine.composition]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
   return Boolean(request.context.allergies?.some((allergy) => medicineText.includes(allergy.toLowerCase())));
 }
 
@@ -100,7 +106,14 @@ function symptomLabel(symptomId: string): string {
     acidity: "acidity",
     allergy: "allergy",
     diarrhea: "diarrhea",
-    pain: "pain"
+    "body-pain": "body pain",
+    "joint-pain": "joint pain",
+    "back-pain": "back pain",
+    "dry-cough": "dry cough",
+    "chest-congestion": "chest congestion",
+    "bacterial-infection": "bacterial infection",
+    "high-blood-pressure": "high blood pressure",
+    diabetes: "diabetes"
   };
   return labels[symptomId] ?? symptomId;
 }

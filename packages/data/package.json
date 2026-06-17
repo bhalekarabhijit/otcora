@@ -10,6 +10,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "sitemap": "tsx src/cli/sitemap.ts",
     "import-csv": "tsx src/cli/import-csv.ts",
-    "scrape-missing": "tsx src/cli/scrape-missing.ts"
+    "scrape-missing": "tsx src/cli/scrape-missing.ts",
+    "build-core-catalog": "tsx src/cli/build-core-catalog.ts"
   }
 }

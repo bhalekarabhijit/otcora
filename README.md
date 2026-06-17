@@ -33,9 +33,10 @@ Then run:
 npm run data:sitemap
 npm run data:import-csv
 npm run data:scrape-missing
+npm run data:build-core-catalog
 ```
 
-The first production ingestion pass should review 1mg's terms and use the sitemap inventory responsibly. Scraped records keep source URL, sitemap type, scrape timestamp, parser version, and confidence fields.
+`data:build-core-catalog` turns the local CSV into the tracked TypeScript catalog used by the app. The first production ingestion pass should review 1mg's terms and use the sitemap inventory responsibly. Scraped records keep source URL, sitemap type, scrape timestamp, parser version, and confidence fields.
 
 ## Safety Positioning
 
