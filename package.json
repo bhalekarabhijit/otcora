@@ -1,0 +1,26 @@
+{
+  "name": "otcora",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "npm run dev -w @otcora/web",
+    "build": "npm run build --workspaces --if-present",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "data:sitemap": "npm run sitemap -w @otcora/data",
+    "data:import-csv": "npm run import-csv -w @otcora/data",
+    "data:scrape-missing": "npm run scrape-missing -w @otcora/data"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.8"
+  }
+}

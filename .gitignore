@@ -1,0 +1,15 @@
+.DS_Store
+node_modules/
+.next/
+dist/
+coverage/
+.env
+.env.local
+.env.*.local
+.firecrawl/
+data/raw/*
+!data/raw/.gitkeep
+data/generated/*
+!data/generated/.gitkeep
+*.log
+*.tsbuildinfo
