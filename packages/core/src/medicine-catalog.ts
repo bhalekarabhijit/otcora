@@ -56,7 +56,7 @@ export function buildMedicineCatalog(records?: SeedMedicineRecord[]): Medicine[]
   const csvMedicines = actualRecords.map(seedToMedicine).filter((medicine): medicine is Medicine => Boolean(medicine));
 
   if (csvMedicines.length > 0) {
-    return csvMedicines;
+    return mergeCuratedMedicines(csvMedicines);
   }
 
   if (process.env.OTCORA_ALLOW_FALLBACK_CATALOG === "true") {
@@ -64,8 +64,16 @@ export function buildMedicineCatalog(records?: SeedMedicineRecord[]): Medicine[]
   }
 
   throw new Error(
-    "No usable Otcora medicine records were loaded. Run npm run data:prepare from the repo root and ensure data/raw/seed_1mg_medicines.csv exists."
+    "No usable Otcora medicine records were loaded. Run npm run data:prepare from the repo root and ensure data/raw/seed_medicines.csv exists."
   );
+}
+
+function mergeCuratedMedicines(csvMedicines: Medicine[]): Medicine[] {
+  const existingIds = new Set(csvMedicines.map((medicine) => medicine.id));
+  return [
+    ...curatedMedicines.filter((medicine) => !existingIds.has(medicine.id)),
+    ...csvMedicines
+  ];
 }
 
 function seedToMedicine(record: SeedMedicineRecord): Medicine | undefined {
@@ -99,11 +107,11 @@ function seedToMedicine(record: SeedMedicineRecord): Medicine | undefined {
     warnings: unique([
       ...rules.flatMap((rule) => rule.warnings),
       ...(prescriptionStatus === "prescription" ? ["Prescription required. Use only with a clinician's advice."] : []),
-      ...(prescriptionStatus === "unknown" ? ["Prescription status was not confirmed in the source CSV. Ask a pharmacist before use."] : [])
+      ...(prescriptionStatus === "unknown" ? ["Prescription status was not confirmed in the catalog. Ask a pharmacist before use."] : [])
     ]),
     source: {
-      sourceName: "Imported 1mg CSV seed",
-      sourceUrl: `csv://final.csv#row-${record.rowNumber}`,
+      sourceName: "Imported medicine catalog",
+      sourceUrl: `catalog://medicine-row-${record.rowNumber}`,
       sitemapType: "manual",
       parserVersion: "csv-import-v1",
       confidence: 0.78
@@ -143,6 +151,29 @@ function inferForm(packaging: string | undefined, name: string): string | undefi
 function unique(values: string[]): string[] {
   return [...new Set(values.filter(Boolean))];
 }
+
+const curatedSource = {
+  sourceName: "Otcora clinical seed",
+  sourceUrl: "manual://otcora-curated",
+  sitemapType: "manual" as const,
+  parserVersion: "curated-v1",
+  confidence: 0.82
+};
+
+const curatedMedicines: Medicine[] = [
+  {
+    id: "oral-rehydration-salts",
+    name: "Oral Rehydration Salts",
+    composition: "Oral Rehydration Salts",
+    genericName: "Oral Rehydration Salts",
+    form: "Solution/Sachet",
+    prescriptionStatus: "otc",
+    indications: ["Dehydration prevention", "Fluid and electrolyte replacement"],
+    symptomIds: ["dehydration", "diarrhea", "loose-motion", "vomiting"],
+    warnings: ["Seek care urgently for confusion, very little urine, severe weakness, blood in stool, or dehydration in infants."],
+    source: curatedSource
+  }
+];
 
 const fallbackSource = {
   sourceName: "Otcora clinical seed",

@@ -3,7 +3,7 @@ import { resolve } from "node:path";
 import { parseCsv } from "../csv";
 
 const root = resolve(process.cwd(), "../..");
-const inputPath = resolve(root, "data/raw/seed_1mg_medicines.csv");
+const inputPath = resolve(root, "data/raw/seed_medicines.csv");
 const outputPath = resolve(root, "data/generated/seed-medicines.json");
 
 async function main() {

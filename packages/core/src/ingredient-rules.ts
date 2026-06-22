@@ -8,8 +8,15 @@ export interface IngredientRule {
 
 export const ingredientRules: IngredientRule[] = [
   {
+    patterns: ["oral rehydration salts", "rehydration salts"],
+    symptomIds: ["dehydration", "diarrhea", "loose-motion", "vomiting"],
+    indications: ["Dehydration prevention", "Fluid and electrolyte replacement"],
+    warnings: ["Seek care urgently for confusion, very little urine, severe weakness, blood in stool, or dehydration in infants."],
+    otcEligible: true
+  },
+  {
     patterns: ["paracetamol", "acetaminophen"],
-    symptomIds: ["fever", "headache", "body-pain", "toothache", "sore-throat"],
+    symptomIds: ["fever", "headache", "body-pain", "toothache", "sore-throat", "flu"],
     indications: ["Fever", "Headache", "Mild body pain"],
     warnings: ["Avoid duplicate paracetamol combinations.", "Ask a doctor if you have liver disease."],
     otcEligible: true
@@ -70,7 +77,7 @@ export const ingredientRules: IngredientRule[] = [
   },
   {
     patterns: ["loperamide", "racecadotril", "saccharomyces", "lactobacillus", "bacillus clausii", "probiotic"],
-    symptomIds: ["diarrhea", "loose-motion"],
+    symptomIds: ["diarrhea", "loose-motion", "dehydration"],
     indications: ["Loose motions", "Gut flora support"],
     warnings: ["Avoid self-treatment if there is blood in stool, high fever, severe dehydration, or diarrhea in infants."],
     otcEligible: true

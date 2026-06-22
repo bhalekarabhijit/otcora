@@ -167,7 +167,7 @@ function toRecommendationItem(
     cautions: [
       ...medicine.warnings,
       ...(medicine.prescriptionStatus === "prescription" ? ["Requires a valid prescription and doctor guidance."] : []),
-      ...(medicine.prescriptionStatus === "unknown" ? ["Prescription status is not confirmed in the source data."] : []),
+      ...(medicine.prescriptionStatus === "unknown" ? ["Prescription status is not confirmed in the catalog."] : []),
       ...(allergyHit ? ["Possible allergy match based on your context."] : [])
     ]
   };
@@ -196,6 +196,10 @@ function medicineQualityScore(medicine: Medicine, matchedSymptoms: string[], req
     if (!singleIngredient && medicine.prescriptionStatus === "otc") {
       score -= 8;
     }
+  }
+
+  if (matchedSymptoms.includes("dehydration") && (composition.includes("oral rehydration salts") || composition.includes("rehydration salts"))) {
+    score += 80;
   }
 
   if (request.context?.ageGroup === "child" && /syrup|suspension|drop/.test(form)) {
@@ -343,6 +347,14 @@ function buildSeekCare(symptomIds: string[], ageGroup?: string): SeekCareItem[] 
       severity: "high"
     });
   }
+  if (symptomIds.includes("dehydration")) {
+    items.push({
+      title: "Signs of dehydration",
+      description: "Seek care urgently for confusion, sunken eyes, severe weakness, blood in stool, or very little urine.",
+      severity: "high"
+    });
+  }
+
   if (ageGroup === "child") {
     items.push({
       title: "Children need dose checks",
@@ -373,7 +385,8 @@ function symptomLabel(symptomId: string): string {
     "chest-congestion": "chest congestion",
     "bacterial-infection": "bacterial infection",
     "high-blood-pressure": "high blood pressure",
-    diabetes: "diabetes"
+    diabetes: "diabetes",
+    dehydration: "dehydration"
   };
   return labels[symptomId] ?? symptomId;
 }

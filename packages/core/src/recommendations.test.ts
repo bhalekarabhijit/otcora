@@ -49,4 +49,14 @@ describe("recommendMedicines", () => {
     expect(firstGroup?.products.length).toBeLessThanOrEqual(4);
     expect(result.otc.length).toBeLessThanOrEqual(result.otcGroups.length * 4);
   });
+
+  it("prioritizes oral rehydration salts for dehydration", () => {
+    expect(searchSymptoms("ors")[0]?.id).toBe("dehydration");
+
+    const result = recommendMedicines({ symptomIds: ["dehydration"] });
+
+    expect(result.otcGroups[0]?.title).toBe("Oral Rehydration Salts");
+    expect(result.otcGroups[0]?.products[0]?.medicine.id).toBe("oral-rehydration-salts");
+    expect(result.seekCare.some((item) => item.title === "Signs of dehydration")).toBe(true);
+  });
 });

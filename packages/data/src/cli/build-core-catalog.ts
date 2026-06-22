@@ -22,7 +22,7 @@ interface NormalizedSeedRow {
 }
 
 const root = resolve(process.cwd(), "../..");
-const inputPath = resolve(root, "data/raw/seed_1mg_medicines.csv");
+const inputPath = resolve(root, "data/raw/seed_medicines.csv");
 const jsonOutputPath = resolve(root, "data/generated/seed_medicines.json");
 const tsOutputPath = resolve(root, "packages/core/src/medicine-catalog.generated.ts");
 const ingredientPatterns = ingredientRules
@@ -39,7 +39,7 @@ async function main() {
     }
 
     throw new Error(
-      "Missing data/raw/seed_1mg_medicines.csv and data/generated/seed_medicines.json. Add the raw CSV locally or commit the generated JSON before building."
+      "Missing data/raw/seed_medicines.csv and data/generated/seed_medicines.json. Add the raw CSV locally or commit the generated JSON before building."
     );
   }
 

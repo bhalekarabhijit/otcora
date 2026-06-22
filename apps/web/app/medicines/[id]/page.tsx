@@ -21,7 +21,7 @@ export default async function MedicinePage({ params }: PageProps) {
       <section className="mx-auto max-w-3xl">
         <Link href="/" className="inline-flex items-center gap-2 text-sm font-medium text-trust hover:text-ink">
           <ArrowLeft aria-hidden="true" size={17} />
-          Back to symptom search
+          Back to results
         </Link>
 
         <article className="mt-6 rounded-md border border-line bg-white p-6 shadow-soft">
@@ -64,10 +64,6 @@ export default async function MedicinePage({ params }: PageProps) {
                 ))}
               </ul>
             </section>
-          </div>
-
-          <div className="mt-8 rounded-md border border-line bg-surface p-4 text-sm leading-6 text-muted">
-            Source: {medicine.source.sourceName}. Confidence {Math.round(medicine.source.confidence * 100)}%.
           </div>
         </article>
       </section>

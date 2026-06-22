@@ -5,9 +5,9 @@ import type { SeedMedicineRow } from "../csv";
 import type { SitemapEntry } from "../sitemaps";
 
 const root = resolve(process.cwd(), "../..");
-const sitemapPath = resolve(root, "data/generated/1mg-sitemap.json");
+const sitemapPath = resolve(root, "data/generated/catalog-sitemap.json");
 const seedPath = resolve(root, "data/generated/seed-medicines.json");
-const outputPath = resolve(root, "data/generated/missing-1mg-urls.json");
+const outputPath = resolve(root, "data/generated/missing-catalog-urls.json");
 
 async function main() {
   const sitemap = JSON.parse(await readFile(sitemapPath, "utf8")) as { entries: SitemapEntry[] };
@@ -19,7 +19,7 @@ async function main() {
     generatedAt: new Date().toISOString(),
     count: missing.length,
     missing,
-    nextStep: "Scrape these URLs in reviewed batches with Firecrawl and store parsed records with source provenance."
+    nextStep: "Review these URLs in batches and store normalized records."
   }, null, 2));
 
   console.log(`Found ${missing.length} missing URLs. Wrote ${outputPath}`);

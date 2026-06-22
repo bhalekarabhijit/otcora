@@ -117,6 +117,12 @@ export const symptoms: Symptom[] = [
     aliases: ["loose stools", "watery stools", "upset stomach"]
   },
   {
+    id: "dehydration",
+    label: "Dehydration",
+    aliases: ["dry mouth", "excessive thirst", "less urine", "no urine", "weakness after diarrhea", "oral rehydration", "ors", "electrolytes"],
+    redFlagTerms: ["confusion", "no urination", "sunken eyes", "very weak"]
+  },
+  {
     id: "constipation",
     label: "Constipation",
     aliases: ["hard stool", "difficulty passing stool", "no motion"]
@@ -190,6 +196,11 @@ export const symptoms: Symptom[] = [
     id: "viral-infection",
     label: "Viral infection",
     aliases: ["viral fever", "flu like illness"]
+  },
+  {
+    id: "flu",
+    label: "Flu-like symptoms",
+    aliases: ["influenza", "body ache with fever", "fever with cold", "chills"]
   },
   {
     id: "cold-sores",

@@ -3,8 +3,10 @@ import type { Medicine } from "./types";
 
 export const medicines: Medicine[] = buildMedicineCatalog();
 
+const medicinesById = new Map(medicines.map((medicine) => [medicine.id, medicine]));
+
 export function getMedicineById(id: string): Medicine | undefined {
-  return medicines.find((medicine) => medicine.id === id);
+  return medicinesById.get(id);
 }
 
 export function searchMedicines(query: string, limit = 10): Medicine[] {

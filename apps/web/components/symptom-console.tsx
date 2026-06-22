@@ -19,8 +19,49 @@ export function SymptomConsole() {
   const [pregnant, setPregnant] = useState(false);
   const [allergyText, setAllergyText] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
+  const [hydrated, setHydrated] = useState(false);
 
   const selectedIds = useMemo(() => new Set(selected.map((symptom) => symptom.id)), [selected]);
+
+  useEffect(() => {
+    try {
+      const saved = window.sessionStorage.getItem("otcora.symptom-console");
+      if (saved) {
+        const parsed = JSON.parse(saved) as {
+          query?: string;
+          selected?: Symptom[];
+          result?: RecommendationResponse | null;
+          ageGroup?: UserContext["ageGroup"];
+          pregnant?: boolean;
+          allergyText?: string;
+        };
+        setQuery(parsed.query ?? "");
+        setSelected(parsed.selected ?? []);
+        setResult(parsed.result ?? null);
+        setAgeGroup(parsed.ageGroup ?? "adult");
+        setPregnant(parsed.ageGroup === "child" ? false : Boolean(parsed.pregnant));
+        setAllergyText(parsed.allergyText ?? "");
+      }
+    } catch {
+      window.sessionStorage.removeItem("otcora.symptom-console");
+    } finally {
+      setHydrated(true);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!hydrated) {
+      return;
+    }
+    window.sessionStorage.setItem("otcora.symptom-console", JSON.stringify({
+      query,
+      selected,
+      result,
+      ageGroup,
+      pregnant: ageGroup === "child" ? false : pregnant,
+      allergyText
+    }));
+  }, [ageGroup, allergyText, hydrated, pregnant, query, result, selected]);
 
   useEffect(() => {
     let cancelled = false;
@@ -51,11 +92,27 @@ export function SymptomConsole() {
   function addSymptom(symptom: Symptom) {
     setSelected((current) => current.some((item) => item.id === symptom.id) ? current : [...current, symptom]);
     setQuery("");
+    setResult(null);
     setSuggestionsOpen(false);
   }
 
   function removeSymptom(symptomId: string) {
     setSelected((current) => current.filter((symptom) => symptom.id !== symptomId));
+    setResult(null);
+  }
+
+  function clearResults() {
+    setQuery("");
+    setSuggestions([]);
+    setSuggestionsOpen(false);
+    setSelected([]);
+    setResult(null);
+    setError(null);
+    setAgeGroup("adult");
+    setPregnant(false);
+    setAllergyText("");
+    window.sessionStorage.removeItem("otcora.symptom-console");
+    inputRef.current?.focus();
   }
 
   async function submit() {
@@ -71,7 +128,10 @@ export function SymptomConsole() {
       .map((item) => item.trim())
       .filter(Boolean);
 
-    const context: UserContext = { pregnant };
+    const context: UserContext = {};
+    if (ageGroup !== "child" && pregnant) {
+      context.pregnant = true;
+    }
     if (ageGroup) {
       context.ageGroup = ageGroup;
     }
@@ -198,7 +258,14 @@ export function SymptomConsole() {
           Age group
           <select
             value={ageGroup}
-            onChange={(event) => setAgeGroup(event.target.value as UserContext["ageGroup"])}
+            onChange={(event) => {
+              const nextAgeGroup = event.target.value as UserContext["ageGroup"];
+              setAgeGroup(nextAgeGroup);
+              if (nextAgeGroup === "child") {
+                setPregnant(false);
+              }
+              setResult(null);
+            }}
             className="mt-2 h-11 w-full rounded-md border border-line bg-surface px-3 text-sm outline-none focus:border-trust"
           >
             <option value="adult">Adult</option>
@@ -210,34 +277,63 @@ export function SymptomConsole() {
           Allergies
           <input
             value={allergyText}
-            onChange={(event) => setAllergyText(event.target.value)}
+            onChange={(event) => {
+              setAllergyText(event.target.value);
+              setResult(null);
+            }}
             placeholder="Example: paracetamol, cetirizine"
             className="mt-2 h-11 w-full rounded-md border border-line bg-surface px-3 text-sm outline-none focus:border-trust"
           />
         </label>
       </div>
 
-      <label className="mt-4 flex items-center gap-3 rounded-md border border-line bg-surface p-3 text-sm font-medium text-ink">
-        <input
-          type="checkbox"
-          checked={pregnant}
-          onChange={(event) => setPregnant(event.target.checked)}
-          className="h-4 w-4 accent-trust"
-        />
-        Pregnant or checking for someone pregnant
-      </label>
+      {ageGroup !== "child" ? (
+        <label className="mt-4 flex items-center gap-3 rounded-md border border-line bg-surface p-3 text-sm font-medium text-ink">
+          <input
+            type="checkbox"
+            checked={pregnant}
+            onChange={(event) => {
+              setPregnant(event.target.checked);
+              setResult(null);
+            }}
+            className="h-4 w-4 accent-trust"
+          />
+          Pregnant or checking for someone pregnant
+        </label>
+      ) : null}
 
       {error ? <p className="mt-4 rounded-md bg-red-50 p-3 text-sm text-danger">{error}</p> : null}
 
-      <button
-        type="button"
-        onClick={submit}
-        disabled={loadingResults}
-        className="mt-5 inline-flex h-12 w-full items-center justify-center gap-2 rounded-md bg-trust px-5 text-base font-semibold text-white transition hover:bg-ink disabled:cursor-wait disabled:opacity-70"
-      >
-        {loadingResults ? <Loader2 aria-hidden="true" className="animate-spin" size={19} /> : <Pill aria-hidden="true" size={19} />}
-        Show medicine options
-      </button>
+      <div className="mt-5 grid gap-3 sm:grid-cols-[1fr_auto]">
+        <button
+          type="button"
+          onClick={submit}
+          disabled={loadingResults}
+          className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-md bg-trust px-5 text-base font-semibold text-white transition hover:bg-ink disabled:cursor-wait disabled:opacity-70"
+        >
+          {loadingResults ? <Loader2 aria-hidden="true" className="animate-spin" size={19} /> : <Pill aria-hidden="true" size={19} />}
+          {loadingResults ? "Finding options..." : "Show medicine options"}
+        </button>
+        {result || selected.length > 0 || allergyText ? (
+          <button
+            type="button"
+            onClick={clearResults}
+            className="inline-flex h-12 items-center justify-center rounded-md border border-line bg-white px-5 text-sm font-semibold text-muted transition hover:border-trust hover:text-trust"
+          >
+            Clear
+          </button>
+        ) : null}
+      </div>
+
+      {loadingResults ? (
+        <div role="status" aria-live="polite" className="mt-4 rounded-md border border-trust/20 bg-clinical p-4 text-sm text-trust">
+          <div className="flex items-center gap-3">
+            <Loader2 aria-hidden="true" className="animate-spin" size={18} />
+            <span className="font-semibold">Finding medicine options</span>
+          </div>
+          <p className="mt-2 leading-5 text-muted">Checking selected symptoms, age group, and safety filters.</p>
+        </div>
+      ) : null}
 
       {result ? <RecommendationPanel result={result} /> : null}
     </section>

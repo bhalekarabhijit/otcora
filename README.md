@@ -6,7 +6,7 @@ Otcora is an India-first OTC medicine guidance app. Users enter symptoms, see se
 
 - `apps/web`: Next.js web app, built first.
 - `packages/core`: shared symptom, medicine, recommendation, and safety logic.
-- `packages/data`: 1mg sitemap, CSV diffing, and scrape-planning utilities.
+- `packages/data`: catalog import, CSV diffing, and ingestion utilities.
 - `packages/ui`: shared tokens for web now and mobile later.
 - `apps/mobile`: placeholder for the Android app after web v1 is stable.
 
@@ -21,10 +21,10 @@ The web app runs at `http://localhost:3000`.
 
 ## Data Workflow
 
-Place the existing 1mg CSV at:
+Place the local medicine CSV at:
 
 ```text
-data/raw/seed_1mg_medicines.csv
+data/raw/seed_medicines.csv
 ```
 
 Then run:
@@ -36,7 +36,7 @@ npm run data:scrape-missing
 npm run data:build-core-catalog
 ```
 
-`data:build-core-catalog` turns the local CSV into the tracked TypeScript catalog used by the app. The first production ingestion pass should review 1mg's terms and use the sitemap inventory responsibly. Scraped records keep source URL, sitemap type, scrape timestamp, parser version, and confidence fields.
+`data:build-core-catalog` turns the local CSV into the generated catalog used by the app. Review data rights before using any third-party inventory in production.
 
 ## Safety Positioning
 

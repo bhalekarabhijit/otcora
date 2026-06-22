@@ -21,7 +21,7 @@ export default function HomePage() {
       </header>
 
       <section className="mx-auto grid w-full max-w-7xl items-start gap-8 px-4 pb-12 pt-4 sm:px-6 lg:grid-cols-[0.9fr_1.1fr] lg:px-8 lg:pt-10">
-        <div className="flex flex-col gap-6 lg:sticky lg:top-8 lg:pt-12">
+        <div className="flex flex-col gap-6 lg:sticky lg:top-8">
           <div className="inline-flex w-fit items-center gap-2 rounded-md border border-line bg-white px-3 py-2 text-sm font-medium text-trust">
             <Stethoscope aria-hidden="true" size={17} />
             Educational self-care support
