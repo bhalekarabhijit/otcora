@@ -1,6 +1,7 @@
 import { rulesForComposition } from "./ingredient-rules";
-import { seedMedicineRecords } from "./medicine-catalog.generated";
 import type { Medicine, PrescriptionStatus } from "./types";
+import { readFileSync, existsSync } from "node:fs";
+import { join } from "node:path";
 
 export interface SeedMedicineRecord {
   id: string;
@@ -14,9 +15,57 @@ export interface SeedMedicineRecord {
   rowNumber: number;
 }
 
-export function buildMedicineCatalog(records: SeedMedicineRecord[] = seedMedicineRecords): Medicine[] {
-  const csvMedicines = records.map(seedToMedicine).filter((medicine): medicine is Medicine => Boolean(medicine));
-  return csvMedicines.length > 0 ? csvMedicines : fallbackMedicines;
+let cachedSeedRecords: SeedMedicineRecord[] | null = null;
+
+function findDataFilePath(): string {
+  const cwd = process.cwd();
+
+  // Option 1: started from monorepo root
+  const rootPath = join(cwd, "data/generated/seed_medicines.json");
+  if (existsSync(rootPath)) return rootPath;
+
+  // Option 2: started from apps/web or packages/core or packages/data
+  const subrepoPath = join(cwd, "../../data/generated/seed_medicines.json");
+  if (existsSync(subrepoPath)) return subrepoPath;
+
+  // Option 3: fallback using import.meta.url
+  try {
+    const fileDir = new URL(".", import.meta.url).pathname;
+    const resolvedPath = join(fileDir, "../../../data/generated/seed_medicines.json");
+    if (existsSync(resolvedPath)) return resolvedPath;
+  } catch (e) {
+    // Ignore URL errors
+  }
+
+  throw new Error("Could not locate data/generated/seed_medicines.json. Run npm run data:prepare from the repo root.");
+}
+
+export function getSeedMedicineRecords(): SeedMedicineRecord[] {
+  if (cachedSeedRecords) {
+    return cachedSeedRecords;
+  }
+
+  const filePath = findDataFilePath();
+  const raw = readFileSync(filePath, "utf8");
+  cachedSeedRecords = JSON.parse(raw) as SeedMedicineRecord[];
+  return cachedSeedRecords;
+}
+
+export function buildMedicineCatalog(records?: SeedMedicineRecord[]): Medicine[] {
+  const actualRecords = records || getSeedMedicineRecords();
+  const csvMedicines = actualRecords.map(seedToMedicine).filter((medicine): medicine is Medicine => Boolean(medicine));
+
+  if (csvMedicines.length > 0) {
+    return csvMedicines;
+  }
+
+  if (process.env.OTCORA_ALLOW_FALLBACK_CATALOG === "true") {
+    return fallbackMedicines;
+  }
+
+  throw new Error(
+    "No usable Otcora medicine records were loaded. Run npm run data:prepare from the repo root and ensure data/raw/seed_1mg_medicines.csv exists."
+  );
 }
 
 function seedToMedicine(record: SeedMedicineRecord): Medicine | undefined {
@@ -30,7 +79,7 @@ function seedToMedicine(record: SeedMedicineRecord): Medicine | undefined {
     return undefined;
   }
 
-  const prescriptionStatus = classifyPrescriptionStatus(record.prescriptionRaw, rules.some((rule) => rule.otcEligible));
+  const prescriptionStatus = classifyPrescriptionStatus(record.prescriptionRaw, rules.every((rule) => rule.otcEligible));
 
   const form = inferForm(record.packaging, record.name);
 
@@ -62,12 +111,12 @@ function seedToMedicine(record: SeedMedicineRecord): Medicine | undefined {
   };
 }
 
-function classifyPrescriptionStatus(value: string | undefined, otcEligible: boolean): PrescriptionStatus {
+function classifyPrescriptionStatus(value: string | undefined, selfCareEligible: boolean): PrescriptionStatus {
   const normalized = value?.toLowerCase() ?? "";
   if (normalized.includes("prescription required") || normalized === "prescription") {
     return "prescription";
   }
-  if (otcEligible && (normalized.includes("not mentioned") || normalized === "")) {
+  if (selfCareEligible && (normalized.includes("not mentioned") || normalized === "")) {
     return "otc";
   }
   return "unknown";

@@ -9,10 +9,12 @@
   ],
   "scripts": {
     "dev": "npm run dev -w @otcora/web",
+    "prebuild": "npm run data:prepare",
     "build": "npm run build --workspaces --if-present",
     "typecheck": "npm run typecheck --workspaces --if-present",
     "test": "vitest run",
     "test:watch": "vitest",
+    "data:prepare": "npm run data:build-core-catalog",
     "data:sitemap": "npm run sitemap -w @otcora/data",
     "data:import-csv": "npm run import-csv -w @otcora/data",
     "data:scrape-missing": "npm run scrape-missing -w @otcora/data",

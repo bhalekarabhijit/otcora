@@ -89,7 +89,7 @@ export const ingredientRules: IngredientRule[] = [
     warnings: ["Breathlessness, blue lips, chest tightness, or severe wheezing can be urgent."]
   },
   {
-    patterns: ["azithromycin", "amoxycillin", "amoxicillin", "clavulanic", "ampicillin", "cloxacillin", "cefixime", "cefuroxime", "cefadroxil", "cefpodoxime", "ciprofloxacin", "levofloxacin", "ofloxacin", "doxycycline", "clindamycin", "metronidazole", "tinidazole", "amikacin"],
+    patterns: ["azithromycin", "amoxycillin", "amoxicillin", "clavulanic", "ampicillin", "cloxacillin", "cefixime", "cefuroxime", "cefadroxil", "cefpodoxime", "ciprofloxacin", "levofloxacin", "ofloxacin", "doxycycline", "clindamycin", "metronidazole", "tinidazole", "amikacin", "neomycin"],
     symptomIds: ["bacterial-infection", "fever", "sore-throat", "skin-infection", "uti"],
     indications: ["Bacterial infection"],
     warnings: ["Antibiotics require clinician guidance. Do not self-medicate or stop early without advice."]
@@ -114,7 +114,7 @@ export const ingredientRules: IngredientRule[] = [
     warnings: ["Retinoids and some acne medicines are not suitable in pregnancy unless prescribed."]
   },
   {
-    patterns: ["hydrocortisone", "mometasone", "betamethasone", "clobetasol", "beclomethasone", "fluticasone"],
+    patterns: ["hydrocortisone", "mometasone", "betamethasone", "clobetasol", "beclomethasone", "beclometasone", "fluticasone"],
     symptomIds: ["skin-rash", "itching", "allergy", "eczema"],
     indications: ["Inflamed or allergic skin symptoms"],
     warnings: ["Steroids should not be used on infections, face, or long term unless advised."]

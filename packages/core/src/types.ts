@@ -57,6 +57,21 @@ export interface RecommendationItem {
   cautions: string[];
 }
 
+export interface CompositionRecommendationGroup {
+  id: string;
+  title: string;
+  subtitle?: string;
+  prescriptionStatus: PrescriptionStatus;
+  matchScore: number;
+  totalProducts: number;
+  shownProducts: number;
+  forms: string[];
+  strengths: string[];
+  reasons: string[];
+  cautions: string[];
+  products: RecommendationItem[];
+}
+
 export interface SeekCareItem {
   title: string;
   description: string;
@@ -67,6 +82,8 @@ export interface RecommendationResponse {
   otc: RecommendationItem[];
   prescription: RecommendationItem[];
   avoid: RecommendationItem[];
+  otcGroups: CompositionRecommendationGroup[];
+  prescriptionGroups: CompositionRecommendationGroup[];
   seekCare: SeekCareItem[];
   disclaimer: string;
 }

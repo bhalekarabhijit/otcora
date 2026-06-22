@@ -263,17 +263,17 @@ function RecommendationPanel({ result }: { result: RecommendationResponse }) {
         </section>
       ) : null}
 
-      <MedicineSection
-        title="OTC options"
+      <CompositionSection
+        title="OTC compositions"
         icon={<ShieldCheck aria-hidden="true" size={18} />}
-        items={result.otc}
+        groups={result.otcGroups}
         tone="otc"
         empty="No OTC matches yet. Try another symptom or ask a pharmacist."
       />
-      <MedicineSection
-        title="Prescription medicines"
+      <CompositionSection
+        title="Prescription compositions"
         icon={<FileText aria-hidden="true" size={18} />}
-        items={result.prescription}
+        groups={result.prescriptionGroups}
         tone="rx"
         empty="No prescription matches for this symptom set."
       />
@@ -291,6 +291,87 @@ function RecommendationPanel({ result }: { result: RecommendationResponse }) {
 }
 
 type RecommendationItem = RecommendationResponse["otc"][number];
+type CompositionGroup = RecommendationResponse["otcGroups"][number];
+
+function CompositionSection({
+  title,
+  icon,
+  groups,
+  tone,
+  empty
+}: {
+  title: string;
+  icon: React.ReactNode;
+  groups: CompositionGroup[];
+  tone: "otc" | "rx";
+  empty: string;
+}) {
+  const toneClass = {
+    otc: "border-emerald-200 bg-emerald-50 text-care",
+    rx: "border-amber-200 bg-amber-50 text-saffron"
+  }[tone];
+
+  return (
+    <section className="rounded-md border border-line bg-white p-4">
+      <h3 className="flex items-center gap-2 text-base font-semibold text-ink">
+        <span className={`grid h-8 w-8 place-items-center rounded-md border ${toneClass}`}>{icon}</span>
+        {title}
+      </h3>
+      {groups.length > 0 ? (
+        <div className="mt-4 space-y-3">
+          {groups.map((group) => (
+            <article key={group.id} className="rounded-md border border-line bg-surface p-4">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                <div>
+                  <p className="text-lg font-semibold text-ink">{group.title}</p>
+                  {group.subtitle ? <p className="mt-1 text-sm leading-5 text-muted">{group.subtitle}</p> : null}
+                  <div className="mt-2 flex flex-wrap gap-2 text-xs font-medium text-muted">
+                    {group.forms.slice(0, 4).map((form) => (
+                      <span key={form} className="rounded-md border border-line bg-white px-2 py-1">{form}</span>
+                    ))}
+                    {group.strengths.slice(0, 3).map((strength) => (
+                      <span key={strength} className="rounded-md border border-line bg-white px-2 py-1">{strength}</span>
+                    ))}
+                  </div>
+                </div>
+                <span className="w-fit rounded-md border border-line bg-white px-2 py-1 text-xs font-semibold uppercase tracking-[0.08em] text-muted">
+                  {group.totalProducts} products
+                </span>
+              </div>
+
+              <ul className="mt-3 space-y-1 text-sm leading-6 text-muted">
+                {group.reasons.slice(0, 2).map((reason) => (
+                  <li key={reason}>{reason}</li>
+                ))}
+                {group.cautions.slice(0, 2).map((caution) => (
+                  <li key={caution} className="text-saffron">{caution}</li>
+                ))}
+              </ul>
+
+              <div className="mt-4 divide-y divide-line rounded-md border border-line bg-white">
+                {group.products.map((item) => (
+                  <Link
+                    key={item.medicine.id}
+                    href={`/medicines/${item.medicine.id}`}
+                    className="flex flex-col gap-1 px-3 py-3 transition hover:bg-clinical sm:flex-row sm:items-center sm:justify-between"
+                  >
+                    <span>
+                      <span className="block text-sm font-semibold text-ink">{item.medicine.name}</span>
+                      <span className="mt-0.5 block text-xs text-muted">{item.medicine.manufacturer ?? item.medicine.form ?? "Medicine"}</span>
+                    </span>
+                    <span className="text-xs font-medium text-muted">{item.medicine.price ? `₹${item.medicine.price}` : item.medicine.prescriptionStatus}</span>
+                  </Link>
+                ))}
+              </div>
+            </article>
+          ))}
+        </div>
+      ) : (
+        <p className="mt-3 rounded-md bg-surface p-3 text-sm text-muted">{empty}</p>
+      )}
+    </section>
+  );
+}
 
 function MedicineSection({
   title,
@@ -302,14 +383,10 @@ function MedicineSection({
   title: string;
   icon: React.ReactNode;
   items: RecommendationItem[];
-  tone: "otc" | "rx" | "avoid";
+  tone: "avoid";
   empty: string;
 }) {
-  const toneClass = {
-    otc: "border-emerald-200 bg-emerald-50 text-care",
-    rx: "border-amber-200 bg-amber-50 text-saffron",
-    avoid: "border-red-200 bg-red-50 text-danger"
-  }[tone];
+  const toneClass = "border-red-200 bg-red-50 text-danger";
 
   return (
     <section className="rounded-md border border-line bg-white p-4">

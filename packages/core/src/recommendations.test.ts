@@ -29,4 +29,24 @@ describe("recommendMedicines", () => {
     const result = recommendMedicines({ symptomIds: ["acidity"] });
     expect(result.otc.every((item) => item.medicine.symptomIds.includes("acidity"))).toBe(true);
   });
+
+  it("does not alphabetically flood fever results", () => {
+    const result = recommendMedicines({ symptomIds: ["fever"] });
+    const firstPage = result.otcGroups[0]?.products ?? [];
+    const firstLetters = new Set(firstPage.map((item) => item.medicine.name[0]?.toUpperCase()).filter(Boolean));
+
+    expect(firstPage.length).toBeGreaterThan(3);
+    expect(firstLetters.size).toBeGreaterThan(1);
+    expect(firstPage.every((item) => item.medicine.composition?.toLowerCase().includes("paracetamol"))).toBe(true);
+  });
+
+  it("groups fever recommendations by composition with limited product examples", () => {
+    const result = recommendMedicines({ symptomIds: ["fever"] });
+    const firstGroup = result.otcGroups[0];
+
+    expect(firstGroup?.title).toBe("Paracetamol");
+    expect(firstGroup?.totalProducts).toBeGreaterThan(100);
+    expect(firstGroup?.products.length).toBeLessThanOrEqual(4);
+    expect(result.otc.length).toBeLessThanOrEqual(result.otcGroups.length * 4);
+  });
 });
