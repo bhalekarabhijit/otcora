@@ -26,6 +26,27 @@ describe("recommendMedicines", () => {
     expect(result.prescriptionGroups).toHaveLength(0);
   });
 
+  it("adds relevant OTC compositions as more symptoms are selected", () => {
+    const fever = recommendMedicines({ symptomIds: ["fever"], context: adultContext });
+    const combined = recommendMedicines({
+      symptomIds: ["fever", "cold", "blocked-nose"],
+      context: adultContext
+    });
+
+    expect(fever.otcGroups.map((group) => group.title)).toContain("Paracetamol");
+    expect(combined.otcGroups.length).toBeGreaterThan(fever.otcGroups.length);
+    expect(combined.otcGroups.some((group) => group.title.includes("Phenylephrine"))).toBe(true);
+    expect(combined.otcGroups.some((group) => group.title.includes("Oxymetazoline"))).toBe(true);
+  });
+
+  it("returns adult nasal decongestant examples for blocked nose", () => {
+    const result = recommendMedicines({ symptomIds: ["blocked-nose"], context: adultContext });
+
+    expect(result.otcGroups.length).toBeGreaterThan(0);
+    expect(result.otcGroups.some((group) => group.title === "Oxymetazoline")).toBe(true);
+    expect(result.otc.every((item) => !/paediatric|pediatric|kid|baby|infant/i.test(item.medicine.name))).toBe(true);
+  });
+
   it("keeps prescription composition labels free of catalog company prefixes", () => {
     const result = recommendMedicines({ symptomIds: ["acidity"], context: adultContext });
     const titles = result.prescriptionGroups.map((group) => group.title);

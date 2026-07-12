@@ -135,7 +135,8 @@ function seedToMedicine(record: SeedMedicineRecord): Medicine | undefined {
     record.prescriptionRaw,
     rules.every((rule) => rule.otcEligible),
     record.composition,
-    form
+    form,
+    record.name
   );
 
   return {
@@ -170,13 +171,14 @@ function classifyPrescriptionStatus(
   value: string | undefined,
   selfCareEligible: boolean,
   composition: string,
-  form: string | undefined
+  form: string | undefined,
+  name: string
 ): PrescriptionStatus {
   const normalized = value?.toLowerCase() ?? "";
   if (normalized.includes("prescription required") || normalized === "prescription") {
     return "prescription";
   }
-  if (selfCareEligible && isCuratedAdultOtc(composition, form) && (normalized.includes("not mentioned") || normalized === "")) {
+  if (selfCareEligible && isCuratedAdultOtc(composition, form, name) && (normalized.includes("not mentioned") || normalized === "")) {
     return "otc";
   }
   return "unknown";
@@ -189,7 +191,7 @@ function isExcludedCatalogRecord(record: SeedMedicineRecord): boolean {
     || /oral drops?/i.test(record.name);
 }
 
-function isCuratedAdultOtc(composition: string, form: string | undefined): boolean {
+function isCuratedAdultOtc(composition: string, form: string | undefined, name: string): boolean {
   const normalized = composition.toLowerCase().replace(/\s*\([^)]*\)/g, "").trim();
   const ingredients = normalized.split("+").map((ingredient) => ingredient.trim()).filter(Boolean);
   const singleIngredient = ingredients.length === 1 ? ingredients[0] : undefined;
@@ -202,8 +204,21 @@ function isCuratedAdultOtc(composition: string, form: string | undefined): boole
     return true;
   }
 
+  if (["xylometazoline", "oxymetazoline"].includes(singleIngredient ?? "")) {
+    return /nasal/i.test(name) && ["Drops", "Spray"].includes(form ?? "");
+  }
+
   if (singleIngredient === "clotrimazole") {
     return ["Cream", "Gel", "Powder"].includes(form ?? "");
+  }
+
+  const adultOralForm = form === "Tablet" || form === "Capsule";
+  if (adultOralForm && [
+    ["caffeine", "paracetamol"],
+    ["paracetamol", "phenylephrine"],
+    ["caffeine", "paracetamol", "phenylephrine"]
+  ].some((allowed) => sameIngredientSet(ingredients, allowed))) {
+    return true;
   }
 
   const antacidIngredients = new Set([
@@ -216,6 +231,10 @@ function isCuratedAdultOtc(composition: string, form: string | undefined): boole
     "sodium bicarbonate"
   ]);
   return ingredients.length > 1 && ingredients.every((ingredient) => antacidIngredients.has(ingredient));
+}
+
+function sameIngredientSet(actual: string[], expected: string[]): boolean {
+  return actual.length === expected.length && expected.every((ingredient) => actual.includes(ingredient));
 }
 
 function primaryIngredient(composition: string): string {
@@ -233,6 +252,7 @@ function inferForm(packaging: string | undefined, name: string): string | undefi
   if (text.includes("cream")) return "Cream";
   if (text.includes("powder")) return "Powder";
   if (text.includes("suspension")) return "Suspension";
+  if (text.includes("spray")) return "Spray";
   return undefined;
 }
 
