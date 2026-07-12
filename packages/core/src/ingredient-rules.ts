@@ -16,7 +16,7 @@ export const ingredientRules: IngredientRule[] = [
   },
   {
     patterns: ["paracetamol", "acetaminophen"],
-    symptomIds: ["fever", "headache", "body-pain", "toothache", "sore-throat", "flu"],
+    symptomIds: ["fever", "headache", "migraine", "body-pain", "joint-pain", "back-pain", "arthritis-pain", "toothache", "menstrual-cramps", "sore-throat", "flu"],
     indications: ["Fever", "Headache", "Mild body pain"],
     warnings: ["Avoid duplicate paracetamol combinations.", "Ask a doctor if you have liver disease."],
     otcEligible: true
@@ -64,7 +64,7 @@ export const ingredientRules: IngredientRule[] = [
   },
   {
     patterns: ["magaldrate", "simethicone", "dimethicone", "sodium bicarbonate", "aluminium hydroxide", "magnesium hydroxide"],
-    symptomIds: ["acidity", "gas", "indigestion"],
+    symptomIds: ["acidity", "heartburn", "gas", "indigestion"],
     indications: ["Gas", "Acidity", "Indigestion"],
     warnings: ["Ask a doctor if symptoms are frequent, severe, or associated with weight loss or vomiting."],
     otcEligible: true
@@ -109,7 +109,7 @@ export const ingredientRules: IngredientRule[] = [
   },
   {
     patterns: ["clotrimazole", "fluconazole", "itraconazole", "terbinafine", "ketoconazole", "miconazole", "amorolfine", "luliconazole", "sertaconazole"],
-    symptomIds: ["fungal-infection", "itching", "skin-rash"],
+    symptomIds: ["fungal-infection"],
     indications: ["Fungal skin or nail infection"],
     warnings: ["Widespread, recurrent, nail, scalp, or genital symptoms need medical review."],
     otcEligible: true
@@ -208,10 +208,17 @@ export const ingredientRules: IngredientRule[] = [
     otcEligible: true
   },
   {
-    patterns: ["timolol", "brimonidine", "latanoprost", "travoprost", "moxifloxacin eye", "tobramycin eye", "olopatadine"],
-    symptomIds: ["eye-redness", "eye-allergy", "eye-infection"],
-    indications: ["Eye symptoms"],
-    warnings: ["Eye pain, vision changes, injury, or contact lens infection needs urgent eye care."]
+    patterns: ["carboxymethylcellulose", "hyaluronate"],
+    symptomIds: ["eye-redness", "eye-allergy"],
+    indications: ["Lubrication for itchy, watery, or irritated eyes"],
+    warnings: ["Remove contact lenses before use unless the product label says otherwise.", "Eye pain, vision changes, light sensitivity, injury, or contact-lens redness needs prompt eye care."],
+    otcEligible: true
+  },
+  {
+    patterns: ["olopatadine", "ketotifen", "bepotastine", "epinastine"],
+    symptomIds: ["eye-allergy"],
+    indications: ["Allergic eye symptoms"],
+    warnings: ["Use anti-allergy eye drops only after a clinician or pharmacist confirms the cause and product suitability."]
   }
 ];
 

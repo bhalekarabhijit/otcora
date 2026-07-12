@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { recommendMedicines } from "./recommendations";
-import { searchSymptoms } from "./symptoms";
+import { searchSymptoms, symptoms } from "./symptoms";
 
 describe("symptom search", () => {
   it("returns prefix matches as a user types", () => {
@@ -26,6 +26,32 @@ describe("recommendMedicines", () => {
     expect(result.prescriptionGroups).toHaveLength(0);
   });
 
+  it("keeps cold combinations out of a fever-only result", () => {
+    const result = recommendMedicines({ symptomIds: ["fever"], context: adultContext });
+
+    expect(result.otcGroups.map((group) => group.title)).toEqual(["Paracetamol"]);
+  });
+
+  it("shows lubricant eye drops and separates prescription allergy drops", () => {
+    const result = recommendMedicines({ symptomIds: ["eye-allergy"], context: adultContext });
+
+    expect(result.otcGroups.some((group) => group.title === "Carboxymethylcellulose")).toBe(true);
+    expect(result.prescriptionGroups.some((group) => group.title === "Olopatadine")).toBe(true);
+    expect(result.seekCare.some((item) => item.title === "Eye warning signs")).toBe(true);
+  });
+
+  it("gives every searchable symptom a meaningful outcome", () => {
+    for (const symptom of symptoms) {
+      const result = recommendMedicines({ symptomIds: [symptom.id], context: adultContext });
+      const hasOutcome = result.selfCareBlocked
+        || result.otcGroups.length > 0
+        || result.prescriptionGroups.length > 0
+        || result.seekCare.length > 0;
+
+      expect(hasOutcome, `${symptom.id} silently returned no outcome`).toBe(true);
+    }
+  });
+
   it("adds relevant OTC compositions as more symptoms are selected", () => {
     const fever = recommendMedicines({ symptomIds: ["fever"], context: adultContext });
     const combined = recommendMedicines({
@@ -44,7 +70,27 @@ describe("recommendMedicines", () => {
 
     expect(result.otcGroups.length).toBeGreaterThan(0);
     expect(result.otcGroups.some((group) => group.title === "Oxymetazoline")).toBe(true);
+    expect(result.otcGroups.some((group) => group.title.includes("Paracetamol"))).toBe(false);
     expect(result.otc.every((item) => !/paediatric|pediatric|kid|baby|infant/i.test(item.medicine.name))).toBe(true);
+  });
+
+  it("does not assume a generic rash or viral illness has one specific cause", () => {
+    const rash = recommendMedicines({ symptomIds: ["skin-rash"], context: adultContext });
+    const viral = recommendMedicines({ symptomIds: ["viral-infection"], context: adultContext });
+
+    expect(rash.otcGroups.some((group) => group.title === "Clotrimazole")).toBe(false);
+    expect(viral.prescriptionGroups.some((group) => ["Acyclovir", "Famciclovir", "Valacyclovir"].includes(group.title))).toBe(false);
+    expect(rash.seekCare.length).toBeGreaterThan(0);
+    expect(viral.seekCare.length).toBeGreaterThan(0);
+  });
+
+  it("offers simple OTC symptom relief for heartburn and mild joint pain", () => {
+    const heartburn = recommendMedicines({ symptomIds: ["heartburn"], context: adultContext });
+    const jointPain = recommendMedicines({ symptomIds: ["joint-pain"], context: adultContext });
+
+    expect(heartburn.otcGroups.length).toBeGreaterThan(0);
+    expect(heartburn.otcGroups.some((group) => ["Simethicone", "Dimethicone"].includes(group.title))).toBe(false);
+    expect(jointPain.otcGroups[0]?.title).toBe("Paracetamol");
   });
 
   it("keeps prescription composition labels free of catalog company prefixes", () => {

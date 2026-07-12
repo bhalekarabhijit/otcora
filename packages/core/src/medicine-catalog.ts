@@ -212,6 +212,11 @@ function isCuratedAdultOtc(composition: string, form: string | undefined, name: 
     return ["Cream", "Gel", "Powder"].includes(form ?? "");
   }
 
+  if (["carboxymethylcellulose", "hyaluronate"].includes(singleIngredient ?? "")) {
+    return ["Drops", "Gel"].includes(form ?? "")
+      && /eye|tear|lubricant|aqua/i.test(name);
+  }
+
   const adultOralForm = form === "Tablet" || form === "Capsule";
   if (adultOralForm && [
     ["caffeine", "paracetamol"],

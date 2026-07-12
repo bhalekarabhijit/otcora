@@ -43,6 +43,7 @@ const commonBrandPriorities: Array<[string, number]> = [
 
 const prescriptionContextPatterns: Record<string, string[]> = {
   cough: ["acetylcysteine", "montelukast", "salbutamol", "levosalbutamol", "budesonide", "formoterol", "arformoterol", "ipratropium", "acebrophylline", "theophylline"],
+  "dry-cough": ["dextromethorphan", "noscapine", "pholcodine"],
   "chest-congestion": ["acetylcysteine", "bromhexine", "ambroxol"],
   acidity: ["pantoprazole", "omeprazole", "esomeprazole", "rabeprazole", "dexrabeprazole", "famotidine"],
   heartburn: ["pantoprazole", "omeprazole", "esomeprazole", "rabeprazole", "dexrabeprazole", "famotidine"],
@@ -51,6 +52,10 @@ const prescriptionContextPatterns: Record<string, string[]> = {
   vomiting: ["ondansetron", "domperidone", "metoclopramide"],
   "motion-sickness": ["meclizine", "doxylamine"],
   vertigo: ["meclizine"],
+  allergy: ["cetirizine", "levocetirizine", "fexofenadine", "loratadine", "desloratadine", "bilastine"],
+  sneezing: ["cetirizine", "levocetirizine", "fexofenadine", "loratadine", "desloratadine", "bilastine"],
+  itching: ["cetirizine", "levocetirizine", "fexofenadine", "loratadine", "desloratadine", "bilastine"],
+  eczema: ["hydrocortisone"],
   "fungal-infection": ["fluconazole", "itraconazole", "terbinafine", "ketoconazole"],
   acne: ["adapalene", "tretinoin", "isotretinoin", "clindamycin"],
   "body-pain": ["aceclofenac", "diclofenac", "naproxen", "etoricoxib", "nimesulide"],
@@ -58,7 +63,11 @@ const prescriptionContextPatterns: Record<string, string[]> = {
   "back-pain": ["aceclofenac", "diclofenac", "naproxen", "etoricoxib"],
   toothache: ["ibuprofen", "diclofenac", "naproxen"],
   "menstrual-cramps": ["ibuprofen", "naproxen", "drotaverine", "dicyclomine"],
-  "eye-allergy": ["olopatadine"]
+  "arthritis-pain": ["aceclofenac", "diclofenac", "naproxen", "etoricoxib"],
+  "abdominal-cramps": ["drotaverine", "dicyclomine", "hyoscine", "mebeverine", "camylofin"],
+  "cold-sores": ["acyclovir", "valacyclovir", "famciclovir"],
+  "nerve-pain": ["gabapentin", "pregabalin", "duloxetine"],
+  "eye-allergy": ["olopatadine", "ketotifen", "bepotastine", "epinastine"]
 };
 
 const careOnlySymptoms: Record<string, SeekCareItem> = {
@@ -146,6 +155,74 @@ const careOnlySymptoms: Record<string, SeekCareItem> = {
     title: "Thyroid treatment requires blood tests",
     description: "Thyroid medicines require diagnosis, laboratory monitoring, and clinician-guided dose adjustment.",
     severity: "medium"
+  },
+  "skin-infection": {
+    title: "Skin infections need the right diagnosis",
+    description: "Boils, spreading redness, warmth, pus, fever, severe pain, or an infected wound should be assessed. Antibiotics should not be selected from a symptom list.",
+    severity: "medium"
+  },
+  "burning-urination": {
+    title: "Burning urination needs assessment",
+    description: "A urine test may be needed. Seek prompt care with fever, back pain, vomiting, blood in urine, pregnancy, or inability to pass urine.",
+    severity: "medium"
+  },
+  "urinary-symptoms": {
+    title: "Urinary symptoms need assessment",
+    description: "Frequency, urgency, pain, weak flow, or blood in urine can have different causes and should not be treated from a medicine list.",
+    severity: "medium"
+  },
+  "prostate-symptoms": {
+    title: "Prostate symptoms need assessment",
+    description: "Weak flow, difficulty starting, or frequent night urination needs a clinician review. Inability to pass urine is urgent.",
+    severity: "medium"
+  },
+  "heart-health": {
+    title: "Heart medicines require a diagnosis",
+    description: "Do not start, stop, or change heart medicine from a symptom search. Chest pain, fainting, or breathlessness needs urgent care.",
+    severity: "medium"
+  },
+  "blood-clot-prevention": {
+    title: "Blood thinners require medical supervision",
+    description: "These medicines can cause serious bleeding and must be chosen from a clinician-confirmed indication and medical history.",
+    severity: "medium"
+  },
+  "high-cholesterol": {
+    title: "Cholesterol treatment requires test results",
+    description: "Treatment depends on a lipid profile and overall cardiovascular risk, not symptoms alone.",
+    severity: "medium"
+  }
+};
+
+const clinicalGuidance: Record<string, SeekCareItem> = {
+  "skin-rash": {
+    title: "A rash needs its cause identified",
+    description: "Fungal, allergic, infectious, and medicine-related rashes need different treatment. Seek prompt care for fever, blistering, facial swelling, breathing difficulty, eye or mouth involvement, or a rapidly spreading rash.",
+    severity: "medium"
+  },
+  "viral-infection": {
+    title: "Viral symptoms do not identify one treatment",
+    description: "Many illnesses can cause viral-like symptoms, and antivirals are specific to particular diagnoses. Seek care for breathing difficulty, confusion, dehydration, severe weakness, or persistent worsening symptoms.",
+    severity: "medium"
+  },
+  anemia: {
+    title: "Confirm anemia before taking iron",
+    description: "Fatigue can have many causes. A blood test should confirm anemia and its cause before starting iron or vitamin treatment.",
+    severity: "medium"
+  },
+  fatigue: {
+    title: "Persistent fatigue has many possible causes",
+    description: "Seek medical advice if fatigue is persistent, worsening, or occurs with breathlessness, fainting, weight loss, bleeding, fever, or marked weakness.",
+    severity: "medium"
+  },
+  "vitamin-deficiency": {
+    title: "Confirm the deficiency before high-dose supplements",
+    description: "The correct supplement and dose depend on symptoms, diet, medicines, medical history, and sometimes a blood test.",
+    severity: "medium"
+  },
+  "bone-health": {
+    title: "Bone-health treatment is individual",
+    description: "Calcium or vitamin D is not automatically suitable for every person. A clinician or pharmacist can check diet, kidney history, medicines, and testing needs.",
+    severity: "medium"
   }
 };
 
@@ -178,6 +255,11 @@ const selfCareWarnings: Record<string, SeekCareItem> = {
   "eye-redness": {
     title: "Eye warning signs",
     description: "Eye pain, vision change, light sensitivity, injury, chemical exposure, or redness with contact-lens use needs prompt eye care.",
+    severity: "high"
+  },
+  "eye-allergy": {
+    title: "Eye warning signs",
+    description: "Eye pain, vision change, light sensitivity, injury, thick discharge, or redness with contact-lens use needs prompt eye care.",
     severity: "high"
   }
 };
@@ -216,6 +298,7 @@ export function recommendMedicines(request: RecommendationRequest): Recommendati
   const ranked = candidateMedicinesForSymptoms(symptomIds)
     .map((medicine) => toRecommendationItem(medicine, symptomIds, request))
     .filter((item) => item.matchScore > 0)
+    .filter((item) => isRelevantCombination(item.medicine, symptomIds))
     .sort(compareRecommendationItems);
 
   const avoid = ranked.filter((item) => shouldAvoid(item, request));
@@ -244,6 +327,37 @@ export function recommendMedicines(request: RecommendationRequest): Recommendati
     selfCareBlocked: false,
     disclaimer
   };
+}
+
+function isRelevantCombination(medicine: Medicine, symptomIds: Set<string>): boolean {
+  const ingredients = ingredientNames(medicine.composition ?? "").map((ingredient) => ingredient.toLowerCase());
+  if (ingredients.length === 1
+    && ["simethicone", "dimethicone"].includes(ingredients[0] ?? "")
+    && [...symptomIds].some((symptomId) => symptomId === "acidity" || symptomId === "heartburn")
+    && ![...symptomIds].some((symptomId) => symptomId === "gas" || symptomId === "indigestion")) {
+    return false;
+  }
+
+  if (ingredients.length <= 1 || medicine.prescriptionStatus !== "otc") return true;
+
+  const selected = [...symptomIds];
+  const matchedCount = medicine.symptomIds.filter((symptomId) => symptomIds.has(symptomId)).length;
+  if (matchedCount >= 2) return true;
+
+  if (sameIngredientSet(ingredients, ["caffeine", "paracetamol"])) {
+    return selected.some((symptomId) => symptomId === "headache" || symptomId === "migraine");
+  }
+
+  const antacidIngredients = new Set(["magaldrate", "simethicone", "dimethicone", "alginic acid"]);
+  if (ingredients.every((ingredient) => antacidIngredients.has(ingredient))) {
+    return selected.some((symptomId) => ["acidity", "heartburn", "gas", "indigestion"].includes(symptomId));
+  }
+
+  return false;
+}
+
+function sameIngredientSet(actual: string[], expected: string[]): boolean {
+  return actual.length === expected.length && expected.every((ingredient) => actual.includes(ingredient));
 }
 
 function isAllowedPrescriptionContext(medicine: Medicine, symptomIds: string[]): boolean {
@@ -568,6 +682,8 @@ function buildSeekCare(symptomIds: string[]): SeekCareItem[] {
     if (careItem) items.push(careItem);
     const warning = selfCareWarnings[symptomId];
     if (warning) items.push(warning);
+    const guidance = clinicalGuidance[symptomId];
+    if (guidance) items.push(guidance);
   }
   if (symptomIds.includes("fever")) {
     items.push({
@@ -576,7 +692,7 @@ function buildSeekCare(symptomIds: string[]): SeekCareItem[] {
       severity: "high"
     });
   }
-  if (symptomIds.includes("cough")) {
+  if (symptomIds.some((symptomId) => ["cough", "dry-cough", "chest-congestion"].includes(symptomId))) {
     items.push({
       title: "Breathing difficulty or chest pain",
       description: "A cough with breathlessness, chest pain, blood, or symptoms lasting more than 2 weeks needs medical review.",

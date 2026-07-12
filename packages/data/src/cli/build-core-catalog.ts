@@ -130,6 +130,10 @@ function isExcludedCatalogRow(row: NormalizedSeedRow): boolean {
 
 function splitManufacturerPrefix(composition: string): { manufacturer: string; composition: string } | undefined {
   const lower = composition.toLowerCase();
+  if (ingredientPatterns.some((pattern) => lower.startsWith(pattern))) {
+    return undefined;
+  }
+
   let firstIngredientIndex = Number.POSITIVE_INFINITY;
   for (const pattern of ingredientPatterns) {
     const index = lower.indexOf(pattern);
