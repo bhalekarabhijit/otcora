@@ -1,4 +1,3 @@
-import { ingredientRules } from "./ingredient-rules";
 import { medicines } from "./medicines";
 import { getSymptomsByIds } from "./symptoms";
 import type {
@@ -12,17 +11,207 @@ import type {
 } from "./types";
 
 const disclaimer =
-  "Otcora provides educational medicine information for India and does not diagnose, prescribe, or replace a doctor or pharmacist.";
+  "Otcora provides adult self-care education for India. Brand names are examples, not endorsements. Confirm suitability with a pharmacist and never start a prescription medicine from this information.";
 
-const medicinesBySymptom = buildSymptomIndex(medicines);
 const productsPerComposition = 4;
 const otcGroupLimit = 6;
 const prescriptionGroupLimit = 6;
+const indexedProductsPerComposition = 8;
+
+const commonBrandPriorities: Array<[string, number]> = [
+  ["crocin advance 500", 120],
+  ["crocin 650", 115],
+  ["p 500 tablet", 110],
+  ["paracip 500", 105],
+  ["calpol 500", 100],
+  ["ambrodil", 95],
+  ["mucolite", 92],
+  ["ambrolite", 90],
+  ["ulgel", 95],
+  ["rantac mps", 90],
+  ["candid", 95],
+  ["abzorb", 92],
+  ["clocip", 90],
+  ["canesten", 88],
+  ["nuforce", 86],
+  ["surfaz", 84],
+  ["metagas", 88],
+  ["duphalac", 95],
+  ["livoluk", 90],
+  ["evict", 86]
+];
+
+const prescriptionContextPatterns: Record<string, string[]> = {
+  cough: ["acetylcysteine", "montelukast", "salbutamol", "levosalbutamol", "budesonide", "formoterol", "arformoterol", "ipratropium", "acebrophylline", "theophylline"],
+  "chest-congestion": ["acetylcysteine", "bromhexine", "ambroxol"],
+  acidity: ["pantoprazole", "omeprazole", "esomeprazole", "rabeprazole", "dexrabeprazole", "famotidine"],
+  heartburn: ["pantoprazole", "omeprazole", "esomeprazole", "rabeprazole", "dexrabeprazole", "famotidine"],
+  indigestion: ["pantoprazole", "omeprazole", "esomeprazole", "rabeprazole", "dexrabeprazole", "domperidone"],
+  nausea: ["ondansetron", "domperidone", "metoclopramide"],
+  vomiting: ["ondansetron", "domperidone", "metoclopramide"],
+  "motion-sickness": ["meclizine", "doxylamine"],
+  vertigo: ["meclizine"],
+  "fungal-infection": ["fluconazole", "itraconazole", "terbinafine", "ketoconazole"],
+  acne: ["adapalene", "tretinoin", "isotretinoin", "clindamycin"],
+  "body-pain": ["aceclofenac", "diclofenac", "naproxen", "etoricoxib", "nimesulide"],
+  "joint-pain": ["aceclofenac", "diclofenac", "naproxen", "etoricoxib"],
+  "back-pain": ["aceclofenac", "diclofenac", "naproxen", "etoricoxib"],
+  toothache: ["ibuprofen", "diclofenac", "naproxen"],
+  "menstrual-cramps": ["ibuprofen", "naproxen", "drotaverine", "dicyclomine"],
+  "eye-allergy": ["olopatadine"]
+};
+
+const careOnlySymptoms: Record<string, SeekCareItem> = {
+  "chest-pain": {
+    title: "Chest pain needs urgent assessment",
+    description: "Do not use a medicine list to self-treat chest pain. Seek urgent medical care, especially with sweating, breathlessness, fainting, or pain spreading to the arm, back, neck, or jaw.",
+    severity: "high"
+  },
+  breathlessness: {
+    title: "Breathing difficulty can be urgent",
+    description: "Seek urgent medical care for new or worsening breathlessness, blue lips, chest tightness, confusion, or difficulty speaking full sentences.",
+    severity: "high"
+  },
+  wheezing: {
+    title: "Wheezing needs clinical assessment",
+    description: "New, severe, or worsening wheezing should be assessed by a clinician. Seek urgent care if breathing is difficult or lips appear blue.",
+    severity: "high"
+  },
+  seizure: {
+    title: "Seizures are not suitable for self-care",
+    description: "A first seizure, a seizure lasting five minutes, repeated seizures, injury, pregnancy, or breathing difficulty needs emergency care.",
+    severity: "high"
+  },
+  "high-blood-sugar": {
+    title: "Very high blood sugar needs medical care",
+    description: "Seek urgent care with vomiting, deep breathing, confusion, severe weakness, or dehydration. Diabetes medicines should not be selected from a symptom list.",
+    severity: "high"
+  },
+  "bacterial-infection": {
+    title: "Possible infection needs diagnosis",
+    description: "Antibiotics are not self-care medicines. A clinician should confirm whether an infection is bacterial and select treatment if needed.",
+    severity: "medium"
+  },
+  uti: {
+    title: "Urinary infection symptoms need assessment",
+    description: "Speak with a clinician, especially with fever, back pain, vomiting, pregnancy, blood in urine, or symptoms in a man.",
+    severity: "medium"
+  },
+  "eye-infection": {
+    title: "Eye infections need assessment",
+    description: "Eye pain, vision change, light sensitivity, injury, contact-lens use, or discharge needs prompt professional care.",
+    severity: "medium"
+  },
+  diabetes: {
+    title: "Diabetes medicines require monitoring",
+    description: "Do not start or change diabetes medicine from an information tool. Use a clinician-approved treatment plan.",
+    severity: "medium"
+  },
+  "high-blood-pressure": {
+    title: "Blood-pressure treatment needs measurements",
+    description: "Do not start or change blood-pressure medicine from symptoms alone. Seek urgent care for a very high reading with chest pain, breathlessness, weakness, confusion, or severe headache.",
+    severity: "medium"
+  },
+  depression: {
+    title: "Mental-health symptoms deserve human support",
+    description: "Talk with a qualified clinician. If there is immediate danger or thoughts of self-harm, contact emergency services or a trusted person now.",
+    severity: "medium"
+  },
+  "mental-health": {
+    title: "Mental-health medicines need clinical care",
+    description: "These medicines require diagnosis and monitoring. If there is immediate danger or thoughts of self-harm, contact emergency services or a trusted person now.",
+    severity: "medium"
+  },
+  asthma: {
+    title: "Asthma symptoms need an action plan",
+    description: "Do not choose or change inhalers from a symptom list. Use a clinician-approved asthma plan and seek urgent care for severe or worsening breathing difficulty.",
+    severity: "medium"
+  },
+  anxiety: {
+    title: "Anxiety medicines need clinical assessment",
+    description: "A clinician can check for medical causes and discuss therapy or medicine safely. Seek urgent help if there is immediate danger or self-harm risk.",
+    severity: "medium"
+  },
+  panic: {
+    title: "New panic-like symptoms need assessment",
+    description: "Chest pain, fainting, or breathing difficulty can have other causes. A clinician should assess new or severe episodes before medicine is considered.",
+    severity: "medium"
+  },
+  insomnia: {
+    title: "Sleep medicines are not self-care suggestions",
+    description: "Persistent insomnia needs assessment of its cause. Do not start sedatives or prescription sleep medicines from an information list.",
+    severity: "medium"
+  },
+  thyroid: {
+    title: "Thyroid treatment requires blood tests",
+    description: "Thyroid medicines require diagnosis, laboratory monitoring, and clinician-guided dose adjustment.",
+    severity: "medium"
+  }
+};
+
+const selfCareWarnings: Record<string, SeekCareItem> = {
+  headache: {
+    title: "Headache warning signs",
+    description: "Seek urgent care for a sudden worst-ever headache, weakness, confusion, fainting, vision loss, stiff neck, head injury, or headache during pregnancy.",
+    severity: "high"
+  },
+  allergy: {
+    title: "Severe allergy warning",
+    description: "Swelling of the lips or tongue, breathing difficulty, faintness, or a rapidly spreading reaction needs emergency care.",
+    severity: "high"
+  },
+  vomiting: {
+    title: "Vomiting warning signs",
+    description: "Seek care for blood or green vomit, severe abdominal pain, confusion, very little urine, or inability to keep fluids down.",
+    severity: "high"
+  },
+  diarrhea: {
+    title: "Diarrhea warning signs",
+    description: "Blood or black stool, high fever, severe pain, confusion, or signs of dehydration need medical care.",
+    severity: "high"
+  },
+  "stomach-pain": {
+    title: "Abdominal pain warning signs",
+    description: "Severe, one-sided, worsening, or persistent pain, a rigid abdomen, fainting, blood, repeated vomiting, or pregnancy needs urgent assessment.",
+    severity: "high"
+  },
+  "eye-redness": {
+    title: "Eye warning signs",
+    description: "Eye pain, vision change, light sensitivity, injury, chemical exposure, or redness with contact-lens use needs prompt eye care.",
+    severity: "high"
+  }
+};
+
+const medicinesBySymptom = buildSymptomIndex(medicines);
 
 export function recommendMedicines(request: RecommendationRequest): RecommendationResponse {
   const symptomIds = new Set(request.symptomIds);
   const selectedSymptoms = getSymptomsByIds(request.symptomIds);
-  const seekCare = buildSeekCare(selectedSymptoms.map((symptom) => symptom.id), request.context?.ageGroup);
+  const selectedSymptomIds = selectedSymptoms.map((symptom) => symptom.id);
+  const seekCare = buildSeekCare(selectedSymptomIds);
+  const adultNotConfirmed = request.context?.adultConfirmed !== true;
+  const selfCareBlocked = adultNotConfirmed || selectedSymptomIds.some((symptomId) => symptomId in careOnlySymptoms);
+
+  if (adultNotConfirmed) {
+    seekCare.unshift({
+      title: "Adults only",
+      description: "Otcora currently supports adults aged 18 to 64 who are not pregnant or breastfeeding. Ask a doctor or pharmacist for everyone else.",
+      severity: "medium"
+    });
+  }
+
+  if (selfCareBlocked) {
+    return {
+      otc: [],
+      prescription: [],
+      avoid: [],
+      otcGroups: [],
+      prescriptionGroups: [],
+      seekCare,
+      selfCareBlocked: true,
+      disclaimer
+    };
+  }
 
   const ranked = candidateMedicinesForSymptoms(symptomIds)
     .map((medicine) => toRecommendationItem(medicine, symptomIds, request))
@@ -37,11 +226,13 @@ export function recommendMedicines(request: RecommendationRequest): Recommendati
     "otc",
     otcGroupLimit
   );
+  const otcCompositionIds = new Set(otcGroups.map((group) => group.id));
   const prescriptionGroups = groupRecommendationItems(
-    usable.filter((item) => item.medicine.prescriptionStatus === "prescription"),
+    usable.filter((item) => item.medicine.prescriptionStatus === "prescription"
+      && isAllowedPrescriptionContext(item.medicine, selectedSymptomIds)),
     "prescription",
-    prescriptionGroupLimit
-  );
+    prescriptionGroupLimit + otcCompositionIds.size
+  ).filter((group) => !otcCompositionIds.has(group.id)).slice(0, prescriptionGroupLimit);
 
   return {
     otc: otcGroups.flatMap((group) => group.products),
@@ -50,23 +241,54 @@ export function recommendMedicines(request: RecommendationRequest): Recommendati
     otcGroups,
     prescriptionGroups,
     seekCare,
+    selfCareBlocked: false,
     disclaimer
   };
 }
 
+function isAllowedPrescriptionContext(medicine: Medicine, symptomIds: string[]): boolean {
+  const composition = medicine.composition?.toLowerCase() ?? "";
+  if (!composition || composition.includes("+")) return false;
+  const ingredient = composition.replace(/\s*\([^)]*\)/g, "").trim();
+  return symptomIds.some((symptomId) =>
+    (prescriptionContextPatterns[symptomId] ?? []).includes(ingredient)
+  );
+}
+
 function buildSymptomIndex(catalog: Medicine[]): Map<string, Medicine[]> {
-  const index = new Map<string, Medicine[]>();
+  const grouped = new Map<string, Map<string, Medicine[]>>();
   for (const medicine of catalog) {
     for (const symptomId of medicine.symptomIds) {
-      const existing = index.get(symptomId);
-      if (existing) {
-        existing.push(medicine);
-      } else {
-        index.set(symptomId, [medicine]);
-      }
+      const symptomGroups = grouped.get(symptomId) ?? new Map<string, Medicine[]>();
+      const groupKey = medicine.prescriptionStatus + ":" + compositionGroupKey(medicine);
+      const products = symptomGroups.get(groupKey) ?? [];
+      retainBestCatalogExample(products, medicine);
+      symptomGroups.set(groupKey, products);
+      grouped.set(symptomId, symptomGroups);
     }
   }
+
+  const index = new Map<string, Medicine[]>();
+  for (const [symptomId, symptomGroups] of grouped) {
+    index.set(symptomId, [...symptomGroups.values()].flatMap((products) =>
+      products.sort(compareCatalogExamples)
+    ));
+  }
   return index;
+}
+
+function retainBestCatalogExample(products: Medicine[], candidate: Medicine): void {
+  if (products.length < indexedProductsPerComposition) {
+    products.push(candidate);
+    return;
+  }
+
+  let worstIndex = 0;
+  for (let index = 1; index < products.length; index += 1) {
+    if (compareCatalogExamples(products[index]!, products[worstIndex]!) > 0) worstIndex = index;
+  }
+
+  if (compareCatalogExamples(candidate, products[worstIndex]!) < 0) products[worstIndex] = candidate;
 }
 
 function candidateMedicinesForSymptoms(symptomIds: Set<string>): Medicine[] {
@@ -103,8 +325,16 @@ function groupRecommendationItems(
 
   return [...grouped.entries()]
     .map(([key, groupItems]) => toCompositionGroup(key, groupItems, prescriptionStatus))
+    .filter(isDisplayableCompositionGroup)
     .sort(compareCompositionGroups)
     .slice(0, limit);
+}
+
+function isDisplayableCompositionGroup(group: CompositionRecommendationGroup): boolean {
+  return group.title.length > 1
+    && group.title.length <= 100
+    && !/\b(?:pvt|ltd|llp|private|limited)\b/i.test(group.title)
+    && !/[{}<>]/.test(group.title);
 }
 
 function toCompositionGroup(
@@ -138,14 +368,20 @@ function toCompositionGroup(
 
 function compareCompositionGroups(a: CompositionRecommendationGroup, b: CompositionRecommendationGroup): number {
   return b.matchScore - a.matchScore
-    || b.totalProducts - a.totalProducts
     || a.title.localeCompare(b.title);
 }
 
 function compareRecommendationItems(a: RecommendationItem, b: RecommendationItem): number {
   return b.matchScore - a.matchScore
+    || brandExampleScore(b.medicine) - brandExampleScore(a.medicine)
     || spreadScore(b.medicine) - spreadScore(a.medicine)
     || a.medicine.name.localeCompare(b.medicine.name);
+}
+
+function compareCatalogExamples(a: Medicine, b: Medicine): number {
+  return brandExampleScore(b) - brandExampleScore(a)
+    || spreadScore(b) - spreadScore(a)
+    || a.name.localeCompare(b.name);
 }
 
 function toRecommendationItem(
@@ -161,7 +397,7 @@ function toRecommendationItem(
   return {
     medicine,
     matchScore: matchedSymptoms.length > 0
-      ? matchedSymptoms.length * 100 + medicineQualityScore(medicine, matchedSymptoms, request)
+      ? matchedSymptoms.length * 100 + medicineQualityScore(medicine, matchedSymptoms)
       : 0,
     reasons: matchedSymptoms.map((symptomId) => "May help with " + symptomLabel(symptomId) + " symptoms."),
     cautions: [
@@ -173,7 +409,7 @@ function toRecommendationItem(
   };
 }
 
-function medicineQualityScore(medicine: Medicine, matchedSymptoms: string[], request: RecommendationRequest): number {
+function medicineQualityScore(medicine: Medicine, matchedSymptoms: string[]): number {
   const composition = medicine.composition?.toLowerCase() ?? "";
   const form = medicine.form?.toLowerCase() ?? "";
   const singleIngredient = composition.length > 0 && !composition.includes("+");
@@ -202,11 +438,7 @@ function medicineQualityScore(medicine: Medicine, matchedSymptoms: string[], req
     score += 80;
   }
 
-  if (request.context?.ageGroup === "child" && /syrup|suspension|drop/.test(form)) {
-    score += 6;
-  }
-
-  if (request.context?.ageGroup !== "child" && form === "tablet") {
+  if (form === "tablet") {
     score += 3;
   }
 
@@ -218,10 +450,7 @@ function medicineQualityScore(medicine: Medicine, matchedSymptoms: string[], req
 }
 
 function compositionGroupKey(medicine: Medicine): string {
-  const knownIngredients = knownIngredientNames(medicine);
-  const ingredients = knownIngredients.length > 0
-    ? knownIngredients
-    : ingredientNames(medicine.composition ?? medicine.genericName ?? medicine.name);
+  const ingredients = ingredientNames(medicine.composition ?? medicine.genericName ?? medicine.name);
   const meaningful = ingredients.length > 0 ? ingredients : [medicine.genericName ?? medicine.name];
   return meaningful.map(normalizeIngredientName).filter(Boolean).join("+").toLowerCase();
 }
@@ -230,10 +459,9 @@ function compositionGroupTitle(medicine: Medicine | undefined, key: string): str
   if (!medicine) {
     return titleCase(key.replace(/\+/g, " + "));
   }
-  const knownIngredients = knownIngredientNames(medicine);
-  const ingredients = knownIngredients.length > 0
-    ? knownIngredients
-    : ingredientNames(medicine.composition ?? medicine.genericName ?? medicine.name).map(normalizeIngredientName).filter(Boolean);
+  const ingredients = ingredientNames(medicine.composition ?? medicine.genericName ?? medicine.name)
+    .map(normalizeIngredientName)
+    .filter(Boolean);
   if (ingredients.length > 0) {
     return ingredients.map(titleCase).join(" + ");
   }
@@ -246,24 +474,6 @@ function groupSubtitle(medicine: Medicine | undefined, title: string): string | 
     return undefined;
   }
   return composition;
-}
-
-function knownIngredientNames(medicine: Medicine): string[] {
-  const composition = (medicine.composition ?? medicine.genericName ?? "").toLowerCase();
-  const matches: { name: string; index: number }[] = [];
-  for (const rule of ingredientRules) {
-    for (const pattern of rule.patterns) {
-      const index = composition.indexOf(pattern.toLowerCase());
-      if (index >= 0) {
-        matches.push({ name: normalizeIngredientName(pattern), index });
-        break;
-      }
-    }
-  }
-
-  return unique(matches
-    .sort((a, b) => a.index - b.index)
-    .map((match) => match.name));
 }
 
 function ingredientNames(composition: string): string[] {
@@ -317,6 +527,26 @@ function spreadScore(medicine: Medicine): number {
   return hash >>> 0;
 }
 
+function brandExampleScore(medicine: Medicine): number {
+  const name = medicine.name.toLowerCase();
+  const composition = medicine.composition?.toLowerCase() ?? "";
+  let score = 0;
+
+  for (const [brand, priority] of commonBrandPriorities) {
+    if (name.includes(brand)) {
+      score = Math.max(score, priority);
+    }
+  }
+
+  if (medicine.manufacturer) score += 4;
+  if (medicine.form === "Tablet" || medicine.form === "Capsule") score += 3;
+  if (/paracetamol \((500|650)mg\)/i.test(composition) && !composition.includes("+")) score += 12;
+  if (/kid|junior|paediatric|pediatric|baby|infant|oral drops?|suspension/i.test(name)) score -= 100;
+  if (looksMalformed(medicine)) score -= 50;
+
+  return score;
+}
+
 function shouldAvoid(item: RecommendationItem, request: RecommendationRequest): boolean {
   if (item.matchScore <= 0) {
     return true;
@@ -331,8 +561,14 @@ function shouldAvoid(item: RecommendationItem, request: RecommendationRequest): 
   return Boolean(request.context.allergies?.some((allergy) => medicineText.includes(allergy.toLowerCase())));
 }
 
-function buildSeekCare(symptomIds: string[], ageGroup?: string): SeekCareItem[] {
+function buildSeekCare(symptomIds: string[]): SeekCareItem[] {
   const items: SeekCareItem[] = [];
+  for (const symptomId of symptomIds) {
+    const careItem = careOnlySymptoms[symptomId];
+    if (careItem) items.push(careItem);
+    const warning = selfCareWarnings[symptomId];
+    if (warning) items.push(warning);
+  }
   if (symptomIds.includes("fever")) {
     items.push({
       title: "Persistent or very high fever",
@@ -355,14 +591,11 @@ function buildSeekCare(symptomIds: string[], ageGroup?: string): SeekCareItem[] 
     });
   }
 
-  if (ageGroup === "child") {
-    items.push({
-      title: "Children need dose checks",
-      description: "Confirm age and weight based dosing with a doctor or pharmacist before giving medicine to a child.",
-      severity: "medium"
-    });
-  }
-  return items;
+  return uniqueByTitle(items);
+}
+
+function uniqueByTitle(items: SeekCareItem[]): SeekCareItem[] {
+  return [...new Map(items.map((item) => [item.title, item])).values()];
 }
 
 function unique<T>(values: T[]): T[] {

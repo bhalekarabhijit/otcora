@@ -15,8 +15,7 @@ export function SymptomConsole() {
   const [loadingResults, setLoadingResults] = useState(false);
   const [result, setResult] = useState<RecommendationResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [ageGroup, setAgeGroup] = useState<UserContext["ageGroup"]>("adult");
-  const [pregnant, setPregnant] = useState(false);
+  const [adultConfirmed, setAdultConfirmed] = useState(false);
   const [allergyText, setAllergyText] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
   const [hydrated, setHydrated] = useState(false);
@@ -31,15 +30,13 @@ export function SymptomConsole() {
           query?: string;
           selected?: Symptom[];
           result?: RecommendationResponse | null;
-          ageGroup?: UserContext["ageGroup"];
-          pregnant?: boolean;
+          adultConfirmed?: boolean;
           allergyText?: string;
         };
         setQuery(parsed.query ?? "");
         setSelected(parsed.selected ?? []);
         setResult(parsed.result ?? null);
-        setAgeGroup(parsed.ageGroup ?? "adult");
-        setPregnant(parsed.ageGroup === "child" ? false : Boolean(parsed.pregnant));
+        setAdultConfirmed(Boolean(parsed.adultConfirmed));
         setAllergyText(parsed.allergyText ?? "");
       }
     } catch {
@@ -57,11 +54,24 @@ export function SymptomConsole() {
       query,
       selected,
       result,
-      ageGroup,
-      pregnant: ageGroup === "child" ? false : pregnant,
+      adultConfirmed,
       allergyText
     }));
-  }, [ageGroup, allergyText, hydrated, pregnant, query, result, selected]);
+  }, [adultConfirmed, allergyText, hydrated, query, result, selected]);
+
+  useEffect(() => {
+    if (!hydrated) return;
+    const symptomId = new URLSearchParams(window.location.search).get("symptom");
+    if (!symptomId || selected.some((symptom) => symptom.id === symptomId)) return;
+
+    fetch(`/api/symptoms?q=${encodeURIComponent(symptomId)}`)
+      .then((response) => response.json())
+      .then((payload: { symptoms: Symptom[] }) => {
+        const exact = payload.symptoms.find((symptom) => symptom.id === symptomId);
+        if (exact) setSelected((current) => current.some((item) => item.id === exact.id) ? current : [...current, exact]);
+      })
+      .catch(() => undefined);
+  }, [hydrated, selected]);
 
   useEffect(() => {
     let cancelled = false;
@@ -108,8 +118,7 @@ export function SymptomConsole() {
     setSelected([]);
     setResult(null);
     setError(null);
-    setAgeGroup("adult");
-    setPregnant(false);
+    setAdultConfirmed(false);
     setAllergyText("");
     window.sessionStorage.removeItem("otcora.symptom-console");
     inputRef.current?.focus();
@@ -120,6 +129,10 @@ export function SymptomConsole() {
       setError("Choose at least one symptom to see options.");
       return;
     }
+    if (!adultConfirmed) {
+      setError("Confirm that this search is for an adult aged 18 to 64 who is not pregnant or breastfeeding.");
+      return;
+    }
 
     setError(null);
     setLoadingResults(true);
@@ -128,13 +141,7 @@ export function SymptomConsole() {
       .map((item) => item.trim())
       .filter(Boolean);
 
-    const context: UserContext = {};
-    if (ageGroup !== "child" && pregnant) {
-      context.pregnant = true;
-    }
-    if (ageGroup) {
-      context.ageGroup = ageGroup;
-    }
+    const context: UserContext = { adultConfirmed: true };
     if (allergies.length > 0) {
       context.allergies = allergies;
     }
@@ -145,10 +152,9 @@ export function SymptomConsole() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ symptomIds: selected.map((symptom) => symptom.id), context })
       });
-      if (!response.ok) {
-        throw new Error("Unable to fetch recommendations.");
-      }
-      setResult((await response.json()) as RecommendationResponse);
+      const payload = await response.json() as RecommendationResponse | { error?: string };
+      if (!response.ok) throw new Error("error" in payload ? payload.error ?? "Unable to fetch recommendations." : "Unable to fetch recommendations.");
+      setResult(payload as RecommendationResponse);
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Something went wrong.");
     } finally {
@@ -253,28 +259,9 @@ export function SymptomConsole() {
         ))}
       </div>
 
-      <div className="mt-5 grid gap-3 sm:grid-cols-3">
+      <div className="mt-5">
         <label className="text-sm font-medium text-ink">
-          Age group
-          <select
-            value={ageGroup}
-            onChange={(event) => {
-              const nextAgeGroup = event.target.value as UserContext["ageGroup"];
-              setAgeGroup(nextAgeGroup);
-              if (nextAgeGroup === "child") {
-                setPregnant(false);
-              }
-              setResult(null);
-            }}
-            className="mt-2 h-11 w-full rounded-md border border-line bg-surface px-3 text-sm outline-none focus:border-trust"
-          >
-            <option value="adult">Adult</option>
-            <option value="child">Child</option>
-            <option value="older-adult">Older adult</option>
-          </select>
-        </label>
-        <label className="text-sm font-medium text-ink sm:col-span-2">
-          Allergies
+          Medicine allergies <span className="font-normal text-muted">(optional)</span>
           <input
             value={allergyText}
             onChange={(event) => {
@@ -287,20 +274,21 @@ export function SymptomConsole() {
         </label>
       </div>
 
-      {ageGroup !== "child" ? (
-        <label className="mt-4 flex items-center gap-3 rounded-md border border-line bg-surface p-3 text-sm font-medium text-ink">
-          <input
-            type="checkbox"
-            checked={pregnant}
-            onChange={(event) => {
-              setPregnant(event.target.checked);
-              setResult(null);
-            }}
-            className="h-4 w-4 accent-trust"
-          />
-          Pregnant or checking for someone pregnant
-        </label>
-      ) : null}
+      <label className="mt-4 flex items-start gap-3 rounded-md border border-line bg-surface p-3 text-sm font-medium leading-5 text-ink">
+        <input
+          type="checkbox"
+          checked={adultConfirmed}
+          onChange={(event) => {
+            setAdultConfirmed(event.target.checked);
+            setResult(null);
+          }}
+          className="mt-0.5 h-4 w-4 shrink-0 accent-trust"
+        />
+        <span>
+          I am checking for an adult aged 18-64 who is not pregnant or breastfeeding.
+          <span className="mt-1 block text-xs font-normal text-muted">Children, older adults, pregnancy, and breastfeeding need a pharmacist or doctor.</span>
+        </span>
+      </label>
 
       {error ? <p className="mt-4 rounded-md bg-red-50 p-3 text-sm text-danger">{error}</p> : null}
 
@@ -331,7 +319,7 @@ export function SymptomConsole() {
             <Loader2 aria-hidden="true" className="animate-spin" size={18} />
             <span className="font-semibold">Finding medicine options</span>
           </div>
-          <p className="mt-2 leading-5 text-muted">Checking selected symptoms, age group, and safety filters.</p>
+          <p className="mt-2 leading-5 text-muted">Checking symptoms, adult safety limits, and medicine allergies.</p>
         </div>
       ) : null}
 
@@ -344,12 +332,12 @@ function RecommendationPanel({ result }: { result: RecommendationResponse }) {
   return (
     <div className="mt-6 space-y-4">
       {result.seekCare.length > 0 ? (
-        <section className="rounded-md border border-amber-200 bg-amber-50 p-4">
-          <h3 className="flex items-center gap-2 text-base font-semibold text-saffron">
+        <section className={result.selfCareBlocked ? "rounded-md border border-red-200 bg-red-50 p-4" : "rounded-md border border-amber-200 bg-amber-50 p-4"}>
+          <h3 className={"flex items-center gap-2 text-base font-semibold " + (result.selfCareBlocked ? "text-danger" : "text-saffron")}>
             <AlertTriangle aria-hidden="true" size={18} />
-            Check these before self-care
+            {result.selfCareBlocked ? "Please get professional care" : "Check these before self-care"}
           </h3>
-          <ul className="mt-3 space-y-2 text-sm leading-6 text-amber-900">
+          <ul className="mt-3 space-y-2 text-sm leading-6 text-ink">
             {result.seekCare.map((item) => (
               <li key={item.title}>
                 <strong>{item.title}:</strong> {item.description}
@@ -359,27 +347,33 @@ function RecommendationPanel({ result }: { result: RecommendationResponse }) {
         </section>
       ) : null}
 
-      <CompositionSection
-        title="OTC compositions"
-        icon={<ShieldCheck aria-hidden="true" size={18} />}
-        groups={result.otcGroups}
-        tone="otc"
-        empty="No OTC matches yet. Try another symptom or ask a pharmacist."
-      />
-      <CompositionSection
-        title="Prescription compositions"
-        icon={<FileText aria-hidden="true" size={18} />}
-        groups={result.prescriptionGroups}
-        tone="rx"
-        empty="No prescription matches for this symptom set."
-      />
-      <MedicineSection
-        title="Avoid or review first"
-        icon={<AlertTriangle aria-hidden="true" size={18} />}
-        items={result.avoid}
-        tone="avoid"
-        empty="No avoid flags based on the details entered."
-      />
+      {!result.selfCareBlocked ? (
+        <>
+          <CompositionSection
+            title="OTC options by composition"
+            icon={<ShieldCheck aria-hidden="true" size={18} />}
+            groups={result.otcGroups}
+            tone="otc"
+            empty="No suitable OTC examples were found. Ask a pharmacist instead of trying a prescription product."
+          />
+          <CompositionSection
+            title="Prescription context only"
+            icon={<FileText aria-hidden="true" size={18} />}
+            groups={result.prescriptionGroups}
+            tone="rx"
+            empty="No prescription context is shown for this symptom set."
+          />
+          {result.avoid.length > 0 ? (
+            <MedicineSection
+              title="Avoid or review first"
+              icon={<AlertTriangle aria-hidden="true" size={18} />}
+              items={result.avoid}
+              tone="avoid"
+              empty="No avoid flags based on the details entered."
+            />
+          ) : null}
+        </>
+      ) : null}
 
       <p className="rounded-md border border-line bg-surface p-3 text-xs leading-5 text-muted">{result.disclaimer}</p>
     </div>
@@ -413,6 +407,11 @@ function CompositionSection({
         <span className={`grid h-8 w-8 place-items-center rounded-md border ${toneClass}`}>{icon}</span>
         {title}
       </h3>
+      <p className="mt-2 text-sm leading-6 text-muted">
+        {tone === "otc"
+          ? "Composition comes first. A few common adult brand examples are shown for recognition, not as endorsements or a sales ranking."
+          : "These composition names are shown only to explain what requires a clinician. They are not treatment suggestions, and no brands, strengths, prices, or buying links are provided."}
+      </p>
       {groups.length > 0 ? (
         <div className="mt-4 space-y-3">
           {groups.map((group) => (
@@ -420,31 +419,33 @@ function CompositionSection({
               <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                 <div>
                   <p className="text-lg font-semibold text-ink">{group.title}</p>
-                  {group.subtitle ? <p className="mt-1 text-sm leading-5 text-muted">{group.subtitle}</p> : null}
-                  <div className="mt-2 flex flex-wrap gap-2 text-xs font-medium text-muted">
-                    {group.forms.slice(0, 4).map((form) => (
-                      <span key={form} className="rounded-md border border-line bg-white px-2 py-1">{form}</span>
-                    ))}
-                    {group.strengths.slice(0, 3).map((strength) => (
-                      <span key={strength} className="rounded-md border border-line bg-white px-2 py-1">{strength}</span>
-                    ))}
-                  </div>
+                  {tone === "otc" && group.subtitle ? <p className="mt-1 text-sm leading-5 text-muted">{group.subtitle}</p> : null}
+                  {tone === "otc" ? (
+                    <div className="mt-2 flex flex-wrap gap-2 text-xs font-medium text-muted">
+                      {group.forms.slice(0, 4).map((form) => (
+                        <span key={form} className="rounded-md border border-line bg-white px-2 py-1">{form}</span>
+                      ))}
+                      {group.strengths.slice(0, 3).map((strength) => (
+                        <span key={strength} className="rounded-md border border-line bg-white px-2 py-1">{strength}</span>
+                      ))}
+                    </div>
+                  ) : null}
                 </div>
                 <span className="w-fit rounded-md border border-line bg-white px-2 py-1 text-xs font-semibold uppercase tracking-[0.08em] text-muted">
-                  {group.totalProducts} products
+                  {tone === "otc" ? `${group.shownProducts} examples` : "Doctor only"}
                 </span>
               </div>
 
               <ul className="mt-3 space-y-1 text-sm leading-6 text-muted">
-                {group.reasons.slice(0, 2).map((reason) => (
+                {tone === "otc" ? group.reasons.slice(0, 2).map((reason) => (
                   <li key={reason}>{reason}</li>
-                ))}
+                )) : <li>A clinician may consider this only after assessing the cause, medical history, interactions, and appropriate treatment.</li>}
                 {group.cautions.slice(0, 2).map((caution) => (
                   <li key={caution} className="text-saffron">{caution}</li>
                 ))}
               </ul>
 
-              <div className="mt-4 divide-y divide-line rounded-md border border-line bg-white">
+              {tone === "otc" && group.products.length > 0 ? <div className="mt-4 divide-y divide-line rounded-md border border-line bg-white">
                 {group.products.map((item) => (
                   <Link
                     key={item.medicine.id}
@@ -455,10 +456,10 @@ function CompositionSection({
                       <span className="block text-sm font-semibold text-ink">{item.medicine.name}</span>
                       <span className="mt-0.5 block text-xs text-muted">{item.medicine.manufacturer ?? item.medicine.form ?? "Medicine"}</span>
                     </span>
-                    <span className="text-xs font-medium text-muted">{item.medicine.price ? `₹${item.medicine.price}` : item.medicine.prescriptionStatus}</span>
+                    <span className="text-xs font-semibold text-trust">View details</span>
                   </Link>
                 ))}
-              </div>
+              </div> : null}
             </article>
           ))}
         </div>

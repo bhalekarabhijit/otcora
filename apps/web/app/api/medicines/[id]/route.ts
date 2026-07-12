@@ -1,6 +1,6 @@
 import { getMedicineById } from "@otcora/core";
 import { NextResponse } from "next/server";
-import { toPublicMedicine } from "../../../../lib/public-medicine";
+import { isPublicOtcMedicine, toPublicMedicine } from "../../../../lib/public-medicine";
 
 interface RouteContext {
   params: Promise<{ id: string }>;
@@ -9,7 +9,7 @@ interface RouteContext {
 export async function GET(_request: Request, context: RouteContext) {
   const { id } = await context.params;
   const medicine = getMedicineById(id);
-  if (!medicine) {
+  if (!medicine || !isPublicOtcMedicine(medicine)) {
     return NextResponse.json({ error: "Medicine not found." }, { status: 404 });
   }
   return NextResponse.json({ medicine: toPublicMedicine(medicine) });

@@ -1,10 +1,14 @@
 import type { Medicine, RecommendationItem, RecommendationResponse } from "@otcora/core";
 
-export type PublicMedicine = Omit<Medicine, "source">;
+export type PublicMedicine = Omit<Medicine, "source" | "price" | "mrp">;
 export type PublicRecommendationItem = Omit<RecommendationItem, "medicine"> & { medicine: PublicMedicine };
 
+export function isPublicOtcMedicine(medicine: Medicine): boolean {
+  return medicine.prescriptionStatus === "otc";
+}
+
 export function toPublicMedicine(medicine: Medicine): PublicMedicine {
-  const { source: _source, ...publicMedicine } = medicine;
+  const { source: _source, price: _price, mrp: _mrp, ...publicMedicine } = medicine;
   return publicMedicine;
 }
 
@@ -19,15 +23,22 @@ export function toPublicRecommendationResponse(response: RecommendationResponse)
   return {
     ...response,
     otc: response.otc.map(toPublicRecommendationItem),
-    prescription: response.prescription.map(toPublicRecommendationItem),
-    avoid: response.avoid.map(toPublicRecommendationItem),
+    prescription: [],
+    avoid: response.avoid.filter((item) => isPublicOtcMedicine(item.medicine)).map(toPublicRecommendationItem),
     otcGroups: response.otcGroups.map((group) => ({
       ...group,
       products: group.products.map(toPublicRecommendationItem)
     })),
     prescriptionGroups: response.prescriptionGroups.map((group) => ({
       ...group,
-      products: group.products.map(toPublicRecommendationItem)
+      subtitle: undefined,
+      forms: [],
+      strengths: [],
+      totalProducts: 0,
+      shownProducts: 0,
+      reasons: [],
+      cautions: ["Requires clinical assessment and a valid prescription. Do not self-start this composition."],
+      products: []
     }))
   };
 }

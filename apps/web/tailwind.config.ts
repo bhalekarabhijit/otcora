@@ -1,6 +1,9 @@
 import type { Config } from "tailwindcss";
 
+const withAlpha = (name: string) => "rgb(var(--color-" + name + ") / <alpha-value>)";
+
 const config: Config = {
+  darkMode: "class",
   content: [
     "./app/**/*.{ts,tsx}",
     "./components/**/*.{ts,tsx}",
@@ -9,15 +12,15 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        ink: "#13201f",
-        muted: "#62706d",
-        surface: "#f7fbfa",
-        line: "#d9e6e2",
-        trust: "#107d7e",
-        care: "#2f9b73",
-        saffron: "#b45309",
-        clinical: "#e7f4f1",
-        danger: "#b42318"
+        ink: withAlpha("ink"),
+        muted: withAlpha("muted"),
+        surface: withAlpha("surface"),
+        line: withAlpha("line"),
+        trust: withAlpha("trust"),
+        care: withAlpha("care"),
+        saffron: withAlpha("saffron"),
+        clinical: withAlpha("clinical"),
+        danger: withAlpha("danger")
       },
       boxShadow: {
         soft: "0 20px 60px rgba(16, 125, 126, 0.12)"

@@ -1,24 +1,44 @@
 import { getMedicineById } from "@otcora/core";
-import { AlertTriangle, ArrowLeft, FileText, ShieldCheck } from "lucide-react";
+import type { Metadata } from "next";
+import { AlertTriangle, ArrowLeft, ShieldCheck } from "lucide-react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { SiteFooter, SiteHeader } from "../../../components/site-shell";
+import { isPublicOtcMedicine } from "../../../lib/public-medicine";
+import { siteUrl } from "../../../lib/site";
 
 interface PageProps {
   params: Promise<{ id: string }>;
 }
 
+export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
+  const { id } = await params;
+  const medicine = getMedicineById(id);
+  if (!medicine || !isPublicOtcMedicine(medicine)) {
+    return {
+      title: "Medicine information",
+      robots: { index: false, follow: false }
+    };
+  }
+  return {
+    title: medicine.name + " Medicine Information",
+    description: "Educational information for " + medicine.name + ", including composition, OTC or prescription status, and safety cautions.",
+    alternates: { canonical: siteUrl + "/medicines/" + id },
+    robots: { index: false, follow: false }
+  };
+}
+
 export default async function MedicinePage({ params }: PageProps) {
   const { id } = await params;
   const medicine = getMedicineById(id);
-  if (!medicine) {
+  if (!medicine || !isPublicOtcMedicine(medicine)) {
     notFound();
   }
 
-  const isOtc = medicine.prescriptionStatus === "otc";
-
   return (
-    <main className="min-h-screen px-4 py-8 sm:px-6 lg:px-8">
-      <section className="mx-auto max-w-3xl">
+    <main className="min-h-screen">
+      <SiteHeader />
+      <section className="mx-auto max-w-3xl px-4 py-8 sm:px-6 lg:px-8">
         <Link href="/" className="inline-flex items-center gap-2 text-sm font-medium text-trust hover:text-ink">
           <ArrowLeft aria-hidden="true" size={17} />
           Back to results
@@ -31,17 +51,15 @@ export default async function MedicinePage({ params }: PageProps) {
               <h1 className="mt-2 text-3xl font-semibold tracking-normal text-ink">{medicine.name}</h1>
               {medicine.composition ? <p className="mt-2 max-w-2xl text-muted">{medicine.composition}</p> : null}
             </div>
-            <span className={`inline-flex w-fit items-center gap-2 rounded-md px-3 py-2 text-sm font-semibold ${isOtc ? "bg-clinical text-trust" : "bg-amber-50 text-saffron"}`}>
-              {isOtc ? <ShieldCheck aria-hidden="true" size={16} /> : <FileText aria-hidden="true" size={16} />}
-              {isOtc ? "OTC" : "Prescription"}
+            <span className="inline-flex w-fit items-center gap-2 rounded-md bg-clinical px-3 py-2 text-sm font-semibold text-trust">
+              <ShieldCheck aria-hidden="true" size={16} />
+              OTC example
             </span>
           </div>
 
           <div className="mt-8 grid gap-3 rounded-md border border-line bg-surface p-4 text-sm text-muted sm:grid-cols-2">
             {medicine.manufacturer ? <p><strong className="text-ink">Manufacturer:</strong> {medicine.manufacturer}</p> : null}
             {medicine.packaging ? <p><strong className="text-ink">Pack:</strong> {medicine.packaging}</p> : null}
-            {medicine.price ? <p><strong className="text-ink">Price:</strong> Rs. {medicine.price}</p> : null}
-            {medicine.mrp ? <p><strong className="text-ink">MRP:</strong> Rs. {medicine.mrp}</p> : null}
           </div>
 
           <div className="mt-8 grid gap-6 sm:grid-cols-2">
@@ -67,6 +85,7 @@ export default async function MedicinePage({ params }: PageProps) {
           </div>
         </article>
       </section>
+      <SiteFooter />
     </main>
   );
 }

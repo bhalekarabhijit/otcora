@@ -1,4 +1,4 @@
-import { rulesForComposition } from "./ingredient-rules";
+import { ingredientRules, rulesForComposition } from "./ingredient-rules";
 import type { Medicine, PrescriptionStatus } from "./types";
 import { readFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
@@ -16,6 +16,7 @@ export interface SeedMedicineRecord {
 }
 
 let cachedSeedRecords: SeedMedicineRecord[] | null = null;
+const ingredientPatterns = ingredientRules.flatMap((rule) => rule.patterns).map((pattern) => pattern.toLowerCase());
 
 function findDataFilePath(): string {
   const cwd = process.cwd();
@@ -53,7 +54,8 @@ export function getSeedMedicineRecords(): SeedMedicineRecord[] {
 
 export function buildMedicineCatalog(records?: SeedMedicineRecord[]): Medicine[] {
   const actualRecords = records || getSeedMedicineRecords();
-  const csvMedicines = actualRecords.map(seedToMedicine).filter((medicine): medicine is Medicine => Boolean(medicine));
+  const runtimeRecords = compactRuntimeRecords(actualRecords);
+  const csvMedicines = runtimeRecords.map(seedToMedicine).filter((medicine): medicine is Medicine => Boolean(medicine));
 
   if (csvMedicines.length > 0) {
     return mergeCuratedMedicines(csvMedicines);
@@ -68,6 +70,47 @@ export function buildMedicineCatalog(records?: SeedMedicineRecord[]): Medicine[]
   );
 }
 
+function compactRuntimeRecords(records: SeedMedicineRecord[]): SeedMedicineRecord[] {
+  const nonPrescription: SeedMedicineRecord[] = [];
+  const prescriptionByComposition = new Map<string, SeedMedicineRecord>();
+
+  for (const record of records) {
+    const cleanedRecord = { ...record, composition: cleanRuntimeComposition(record.composition) };
+    if (!/prescription required/i.test(cleanedRecord.prescriptionRaw ?? "")) {
+      nonPrescription.push(cleanedRecord);
+      continue;
+    }
+
+    const key = cleanedRecord.composition
+      .toLowerCase()
+      .replace(/\s*\([^)]*\)/g, "")
+      .replace(/\s+/g, " ")
+      .trim();
+    if (key && !prescriptionByComposition.has(key)) prescriptionByComposition.set(key, cleanedRecord);
+  }
+
+  return [...nonPrescription, ...prescriptionByComposition.values()];
+}
+
+function cleanRuntimeComposition(composition: string): string {
+  const lower = composition.toLowerCase();
+  let firstIngredientIndex = Number.POSITIVE_INFINITY;
+  for (const pattern of ingredientPatterns) {
+    const index = lower.indexOf(pattern);
+    if (index > 0 && index < firstIngredientIndex) firstIngredientIndex = index;
+  }
+
+  if (!Number.isFinite(firstIngredientIndex)) return composition;
+  const prefix = composition.slice(0, firstIngredientIndex).trim();
+  const looksLikeBusinessPrefix = /\b(?:ltd|llp|pvt|private|limited|pharma|pharmaceuticals?|biotech|healthcare|lifecare|medicare|laborator(?:y|ies)|labs?|overseas|company|corp|inc|drugs?|formulations?|life sciences)\b/i.test(prefix)
+    || /^[A-Z]{2,6}[.\s]*$/.test(prefix)
+    || /^\d+[.\s]*$/.test(prefix);
+  if (!looksLikeBusinessPrefix) {
+    return composition;
+  }
+  return composition.slice(firstIngredientIndex).trim();
+}
+
 function mergeCuratedMedicines(csvMedicines: Medicine[]): Medicine[] {
   const existingIds = new Set(csvMedicines.map((medicine) => medicine.id));
   return [
@@ -77,7 +120,7 @@ function mergeCuratedMedicines(csvMedicines: Medicine[]): Medicine[] {
 }
 
 function seedToMedicine(record: SeedMedicineRecord): Medicine | undefined {
-  if (!record.name || !record.composition) {
+  if (!record.name || !record.composition || isExcludedCatalogRecord(record)) {
     return undefined;
   }
 
@@ -87,9 +130,13 @@ function seedToMedicine(record: SeedMedicineRecord): Medicine | undefined {
     return undefined;
   }
 
-  const prescriptionStatus = classifyPrescriptionStatus(record.prescriptionRaw, rules.every((rule) => rule.otcEligible));
-
   const form = inferForm(record.packaging, record.name);
+  const prescriptionStatus = classifyPrescriptionStatus(
+    record.prescriptionRaw,
+    rules.every((rule) => rule.otcEligible),
+    record.composition,
+    form
+  );
 
   return {
     id: record.id,
@@ -119,15 +166,56 @@ function seedToMedicine(record: SeedMedicineRecord): Medicine | undefined {
   };
 }
 
-function classifyPrescriptionStatus(value: string | undefined, selfCareEligible: boolean): PrescriptionStatus {
+function classifyPrescriptionStatus(
+  value: string | undefined,
+  selfCareEligible: boolean,
+  composition: string,
+  form: string | undefined
+): PrescriptionStatus {
   const normalized = value?.toLowerCase() ?? "";
   if (normalized.includes("prescription required") || normalized === "prescription") {
     return "prescription";
   }
-  if (selfCareEligible && (normalized.includes("not mentioned") || normalized === "")) {
+  if (selfCareEligible && isCuratedAdultOtc(composition, form) && (normalized.includes("not mentioned") || normalized === "")) {
     return "otc";
   }
   return "unknown";
+}
+
+function isExcludedCatalogRecord(record: SeedMedicineRecord): boolean {
+  const text = [record.name, record.manufacturer, record.packaging].filter(Boolean).join(" ");
+  return /\btata\b/i.test(text)
+    || /\b(?:kid|junior|paediatric|pediatric|baby|infant)\b/i.test(text)
+    || /oral drops?/i.test(record.name);
+}
+
+function isCuratedAdultOtc(composition: string, form: string | undefined): boolean {
+  const normalized = composition.toLowerCase().replace(/\s*\([^)]*\)/g, "").trim();
+  const ingredients = normalized.split("+").map((ingredient) => ingredient.trim()).filter(Boolean);
+  const singleIngredient = ingredients.length === 1 ? ingredients[0] : undefined;
+
+  if (singleIngredient === "paracetamol" || singleIngredient === "acetaminophen") {
+    return /paracetamol \((500|650)mg\)/i.test(composition);
+  }
+
+  if (["ambroxol", "guaifenesin", "dextromethorphan", "simethicone", "dimethicone", "magaldrate", "lactulose", "ispaghula"].includes(singleIngredient ?? "")) {
+    return true;
+  }
+
+  if (singleIngredient === "clotrimazole") {
+    return ["Cream", "Gel", "Powder"].includes(form ?? "");
+  }
+
+  const antacidIngredients = new Set([
+    "magaldrate",
+    "simethicone",
+    "dimethicone",
+    "alginic acid",
+    "aluminium hydroxide",
+    "magnesium hydroxide",
+    "sodium bicarbonate"
+  ]);
+  return ingredients.length > 1 && ingredients.every((ingredient) => antacidIngredients.has(ingredient));
 }
 
 function primaryIngredient(composition: string): string {

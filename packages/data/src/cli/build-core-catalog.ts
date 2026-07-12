@@ -52,6 +52,7 @@ async function main() {
     const row = rows[i];
     if (!row) continue;
     const normalized = normalizeSeedRow(row);
+    if (isExcludedCatalogRow(normalized)) continue;
     if (normalized.composition && rulesForComposition(normalized.composition).length > 0) {
       const duplicateKey = normalized.name.toLowerCase() + "|" + normalized.composition.toLowerCase();
       if (seen.has(duplicateKey)) {
@@ -114,15 +115,17 @@ function normalizeSeedRow(row: SeedMedicineRow): NormalizedSeedRow {
     manufacturer = "";
   }
 
-  if (!manufacturer) {
-    const split = splitManufacturerPrefix(composition);
-    if (split) {
-      manufacturer = cleanManufacturer(split.manufacturer);
-      composition = cleanComposition(split.composition);
-    }
+  const split = splitManufacturerPrefix(composition);
+  if (split) {
+    if (!manufacturer) manufacturer = cleanManufacturer(split.manufacturer);
+    composition = cleanComposition(split.composition);
   }
 
   return { name, composition, manufacturer };
+}
+
+function isExcludedCatalogRow(row: NormalizedSeedRow): boolean {
+  return /\btata\b/i.test(row.name + " " + row.manufacturer);
 }
 
 function splitManufacturerPrefix(composition: string): { manufacturer: string; composition: string } | undefined {

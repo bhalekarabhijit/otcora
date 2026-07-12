@@ -4,7 +4,35 @@
 
 :root {
   color-scheme: light;
-  background: #f7fbfa;
+  --color-ink: 19 32 31;
+  --color-muted: 98 112 109;
+  --color-surface: 247 251 250;
+  --color-line: 217 230 226;
+  --color-trust: 16 125 126;
+  --color-care: 47 155 115;
+  --color-saffron: 180 83 9;
+  --color-clinical: 231 244 241;
+  --color-danger: 180 35 24;
+  --page-start: #f7fbfa;
+  --page-end: #eef7f5;
+  --glow: rgba(47, 155, 115, 0.12);
+  background: rgb(var(--color-surface));
+}
+
+.dark {
+  color-scheme: dark;
+  --color-ink: 232 246 243;
+  --color-muted: 162 179 175;
+  --color-surface: 16 25 24;
+  --color-line: 50 70 67;
+  --color-trust: 94 211 214;
+  --color-care: 93 214 159;
+  --color-saffron: 251 191 36;
+  --color-clinical: 24 48 45;
+  --color-danger: 248 113 113;
+  --page-start: #101918;
+  --page-end: #172522;
+  --glow: rgba(94, 211, 214, 0.13);
 }
 
 * {
@@ -18,10 +46,10 @@ html {
 body {
   margin: 0;
   min-height: 100vh;
-  color: #13201f;
+  color: rgb(var(--color-ink));
   background:
-    radial-gradient(circle at top left, rgba(47, 155, 115, 0.12), transparent 30rem),
-    linear-gradient(180deg, #f7fbfa 0%, #eef7f5 100%);
+    radial-gradient(circle at top left, var(--glow), transparent 30rem),
+    linear-gradient(180deg, var(--page-start) 0%, var(--page-end) 100%);
 }
 
 button,
@@ -32,5 +60,36 @@ select {
 
 ::selection {
   color: #ffffff;
-  background: #107d7e;
+  background: rgb(var(--color-trust));
+}
+
+.dark .bg-white,
+.dark .bg-white\/70,
+.dark .bg-white\/80 {
+  background-color: rgb(20 31 30 / 0.96);
+}
+
+.dark .bg-amber-50 {
+  background-color: rgb(72 45 12 / 0.72);
+}
+
+.dark .bg-red-50 {
+  background-color: rgb(80 24 22 / 0.72);
+}
+
+.dark .bg-emerald-50 {
+  background-color: rgb(17 58 44 / 0.72);
+}
+
+.dark .text-amber-900 {
+  color: rgb(254 215 170);
+}
+
+.dark input,
+.dark select {
+  color-scheme: dark;
+}
+
+.dark .bg-surface\/80 {
+  background-color: rgb(var(--color-surface) / 0.96);
 }

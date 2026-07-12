@@ -391,6 +391,12 @@ export function getSymptomsByIds(ids: string[]): Symptom[] {
   return symptoms.filter((symptom) => wanted.has(symptom.id));
 }
 
+const symptomIds = new Set(symptoms.map((symptom) => symptom.id));
+
+export function isSymptomId(value: string): boolean {
+  return symptomIds.has(value);
+}
+
 function normalize(value: string): string {
   return value.trim().toLowerCase().replace(/\s+/g, " ");
 }

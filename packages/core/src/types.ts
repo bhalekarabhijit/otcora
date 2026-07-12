@@ -39,8 +39,7 @@ export interface Medicine {
 }
 
 export interface UserContext {
-  ageGroup?: "child" | "adult" | "older-adult";
-  pregnant?: boolean;
+  adultConfirmed?: boolean;
   allergies?: string[];
   currentMedicineNames?: string[];
 }
@@ -85,5 +84,6 @@ export interface RecommendationResponse {
   otcGroups: CompositionRecommendationGroup[];
   prescriptionGroups: CompositionRecommendationGroup[];
   seekCare: SeekCareItem[];
+  selfCareBlocked: boolean;
   disclaimer: string;
 }
