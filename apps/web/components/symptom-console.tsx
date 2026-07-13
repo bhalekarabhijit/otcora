@@ -1,7 +1,7 @@
 "use client";
 
 import type { RecommendationResponse, Symptom, UserContext } from "@otcora/core";
-import { AlertTriangle, Check, FileText, Loader2, Pill, Search, ShieldCheck, X } from "lucide-react";
+import { AlertTriangle, Check, FileText, ListChecks, Loader2, MessageCircle, Pill, Search, ShieldCheck, X } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 
@@ -323,12 +323,18 @@ export function SymptomConsole() {
         </div>
       ) : null}
 
-      {result ? <RecommendationPanel result={result} /> : null}
+      {result ? <RecommendationPanel result={result} onAddSymptom={addSymptom} /> : null}
     </section>
   );
 }
 
-function RecommendationPanel({ result }: { result: RecommendationResponse }) {
+function RecommendationPanel({
+  result,
+  onAddSymptom
+}: {
+  result: RecommendationResponse;
+  onAddSymptom: (symptom: Symptom) => void;
+}) {
   return (
     <div className="mt-6 space-y-4">
       {result.seekCare.length > 0 ? (
@@ -349,12 +355,43 @@ function RecommendationPanel({ result }: { result: RecommendationResponse }) {
 
       {!result.selfCareBlocked ? (
         <>
+          {result.treatmentPlans.length > 0 ? <TreatmentPlanSection plans={result.treatmentPlans} /> : null}
+
+          {result.followUpSymptoms.length > 0 ? (
+            <section className="rounded-md border border-line bg-white p-4">
+              <h3 className="flex items-center gap-2 text-base font-semibold text-ink">
+                <MessageCircle aria-hidden="true" size={18} className="text-trust" />
+                Add what else you are feeling
+              </h3>
+              <p className="mt-2 text-sm leading-6 text-muted">Associated symptoms change which treatment components are relevant.</p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                {result.followUpSymptoms.map((symptom) => (
+                  <button
+                    type="button"
+                    key={symptom.id}
+                    onClick={() => onAddSymptom(symptom)}
+                    className="rounded-md border border-line bg-surface px-3 py-2 text-sm font-semibold text-ink transition hover:border-trust hover:text-trust"
+                  >
+                    + {symptom.label}
+                  </button>
+                ))}
+              </div>
+            </section>
+          ) : null}
+
           <CompositionSection
             title="OTC options by composition"
             icon={<ShieldCheck aria-hidden="true" size={18} />}
             groups={result.otcGroups}
             tone="otc"
             empty="No suitable OTC examples were found. Ask a pharmacist instead of trying a prescription product."
+          />
+          <CompositionSection
+            title="Ask a pharmacist first"
+            icon={<MessageCircle aria-hidden="true" size={18} />}
+            groups={result.pharmacistGroups}
+            tone="pharmacist"
+            empty="No pharmacist-check compositions are needed for this symptom set."
           />
           <CompositionSection
             title="Prescription context only"
@@ -383,6 +420,51 @@ function RecommendationPanel({ result }: { result: RecommendationResponse }) {
 type RecommendationItem = RecommendationResponse["otc"][number];
 type CompositionGroup = RecommendationResponse["otcGroups"][number];
 
+function TreatmentPlanSection({ plans }: { plans: RecommendationResponse["treatmentPlans"] }) {
+  const laneClass = {
+    otc: "border-emerald-200 bg-emerald-50 text-care",
+    pharmacist: "border-trust/30 bg-clinical text-trust",
+    prescription: "border-amber-200 bg-amber-50 text-saffron"
+  };
+
+  return (
+    <section className="rounded-md border border-trust/30 bg-clinical p-4">
+      <h3 className="flex items-center gap-2 text-base font-semibold text-ink">
+        <ListChecks aria-hidden="true" size={18} className="text-trust" />
+        Matched treatment plan
+      </h3>
+      {plans.map((plan) => (
+        <div key={plan.id} className="mt-3">
+          <p className="text-sm leading-6 text-muted">{plan.summary}</p>
+          <div className="mt-3 space-y-3">
+            {plan.steps.map((step, index) => (
+              <article key={step.id} className="rounded-md border border-line bg-white p-4">
+                <div className="flex items-start gap-3">
+                  <span className="grid h-7 w-7 shrink-0 place-items-center rounded-md bg-trust text-xs font-semibold text-white">{index + 1}</span>
+                  <div className="min-w-0 flex-1">
+                    <p className="font-semibold text-ink">{step.purpose}</p>
+                    <p className="mt-1 text-sm leading-5 text-muted">{step.instruction}</p>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {step.alternatives.map((alternative) => (
+                        <span
+                          key={`${step.id}-${alternative.compositionId}`}
+                          className={`rounded-md border px-2.5 py-1.5 text-xs font-semibold ${laneClass[alternative.lane]}`}
+                        >
+                          {alternative.title} - {alternative.lane === "otc" ? "OTC" : alternative.lane === "pharmacist" ? "Pharmacist check" : "Doctor only"}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </article>
+            ))}
+          </div>
+        </div>
+      ))}
+    </section>
+  );
+}
+
 function CompositionSection({
   title,
   icon,
@@ -393,11 +475,12 @@ function CompositionSection({
   title: string;
   icon: React.ReactNode;
   groups: CompositionGroup[];
-  tone: "otc" | "rx";
+  tone: "otc" | "pharmacist" | "rx";
   empty: string;
 }) {
   const toneClass = {
     otc: "border-emerald-200 bg-emerald-50 text-care",
+    pharmacist: "border-trust/30 bg-clinical text-trust",
     rx: "border-amber-200 bg-amber-50 text-saffron"
   }[tone];
 
@@ -410,7 +493,9 @@ function CompositionSection({
       <p className="mt-2 text-sm leading-6 text-muted">
         {tone === "otc"
           ? "Composition comes first. A few common adult brand examples are shown for recognition, not as endorsements or a sales ranking."
-          : "These composition names are shown only to explain what requires a clinician. They are not treatment suggestions, and no brands, strengths, prices, or buying links are provided."}
+          : tone === "pharmacist"
+            ? "These compositions need a pharmacist to confirm their status, ingredient overlap, and suitability. No brand, strength, price, or buying information is shown."
+            : "These composition names are shown only to explain what requires a clinician. They are not treatment suggestions, and no brands, strengths, prices, or buying links are provided."}
       </p>
       {groups.length > 0 ? (
         <div className="mt-4 space-y-3">
@@ -432,14 +517,16 @@ function CompositionSection({
                   ) : null}
                 </div>
                 <span className="w-fit rounded-md border border-line bg-white px-2 py-1 text-xs font-semibold uppercase tracking-[0.08em] text-muted">
-                  {tone === "otc" ? `${group.shownProducts} examples` : "Doctor only"}
+                  {tone === "otc" ? `${group.shownProducts} examples` : tone === "pharmacist" ? "Check first" : "Doctor only"}
                 </span>
               </div>
 
               <ul className="mt-3 space-y-1 text-sm leading-6 text-muted">
                 {tone === "otc" ? group.reasons.slice(0, 2).map((reason) => (
                   <li key={reason}>{reason}</li>
-                )) : <li>A clinician may consider this only after assessing the cause, medical history, interactions, and appropriate treatment.</li>}
+                )) : tone === "pharmacist"
+                  ? <li>A pharmacist should check whether this combination is appropriate and whether it duplicates another selected product.</li>
+                  : <li>A clinician may consider this only after assessing the cause, medical history, interactions, and appropriate treatment.</li>}
                 {group.cautions.slice(0, 2).map((caution) => (
                   <li key={caution} className="text-saffron">{caution}</li>
                 ))}

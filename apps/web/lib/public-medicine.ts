@@ -19,6 +19,23 @@ function toPublicRecommendationItem(item: RecommendationItem): PublicRecommendat
   };
 }
 
+function toPublicContextGroup(
+  group: RecommendationResponse["prescriptionGroups"][number],
+  caution: string
+) {
+  return {
+    ...group,
+    subtitle: undefined,
+    forms: [],
+    strengths: [],
+    totalProducts: 0,
+    shownProducts: 0,
+    reasons: [],
+    cautions: [caution],
+    products: []
+  };
+}
+
 export function toPublicRecommendationResponse(response: RecommendationResponse) {
   return {
     ...response,
@@ -29,16 +46,13 @@ export function toPublicRecommendationResponse(response: RecommendationResponse)
       ...group,
       products: group.products.map(toPublicRecommendationItem)
     })),
-    prescriptionGroups: response.prescriptionGroups.map((group) => ({
-      ...group,
-      subtitle: undefined,
-      forms: [],
-      strengths: [],
-      totalProducts: 0,
-      shownProducts: 0,
-      reasons: [],
-      cautions: ["Requires clinical assessment and a valid prescription. Do not self-start this composition."],
-      products: []
-    }))
+    pharmacistGroups: response.pharmacistGroups.map((group) => toPublicContextGroup(
+      group,
+      "Prescription status or individual suitability is not confirmed. Ask a pharmacist before purchase or use."
+    )),
+    prescriptionGroups: response.prescriptionGroups.map((group) => toPublicContextGroup(
+      group,
+      "Requires clinical assessment and a valid prescription. Do not self-start this composition."
+    ))
   };
 }

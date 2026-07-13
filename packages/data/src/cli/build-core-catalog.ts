@@ -2,6 +2,7 @@ import { access, readFile, mkdir, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { ingredientRules, rulesForComposition } from "@otcora/core";
 import { parseCsv, type SeedMedicineRow } from "../csv";
+import { compactRuntimeCatalog } from "../runtime-catalog";
 
 interface GeneratedSeedRow {
   id: string;
@@ -80,8 +81,9 @@ async function main() {
   await mkdir(resolve(root, "data/generated"), { recursive: true });
   await mkdir(resolve(root, "packages/core/src"), { recursive: true });
 
-  await writeFile(jsonOutputPath, JSON.stringify(generated, null, 2), "utf8");
-  console.log("Generated JSON database with " + generated.length + " records at " + jsonOutputPath);
+  const runtimeCatalog = compactRuntimeCatalog(generated);
+  await writeFile(jsonOutputPath, JSON.stringify(runtimeCatalog, null, 2), "utf8");
+  console.log("Generated runtime JSON database with " + runtimeCatalog.length + " records at " + jsonOutputPath);
 
   await writeGeneratedTypeStub();
 }

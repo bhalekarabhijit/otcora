@@ -30,7 +30,7 @@ describe("recommendation API", () => {
 
   it("returns OTC examples and composition-only prescription context", async () => {
     const response = await POST(request(JSON.stringify({
-      symptomIds: ["cough"],
+      symptomIds: ["chest-congestion"],
       context: { adultConfirmed: true }
     })));
     const payload = await response.json();
@@ -39,5 +39,18 @@ describe("recommendation API", () => {
     expect(payload.otc.length).toBeGreaterThan(0);
     expect(payload.prescription).toHaveLength(0);
     expect(payload.prescriptionGroups.every((group: { products: unknown[] }) => group.products.length === 0)).toBe(true);
+  });
+
+  it("returns a guided fever plan and composition-only pharmacist context", async () => {
+    const response = await POST(request(JSON.stringify({
+      symptomIds: ["fever", "cold", "blocked-nose"],
+      context: { adultConfirmed: true }
+    })));
+    const payload = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(payload.treatmentPlans[0].steps.some((step: { purpose: string }) => step.purpose === "Fever discomfort")).toBe(true);
+    expect(payload.pharmacistGroups.length).toBeGreaterThan(0);
+    expect(payload.pharmacistGroups.every((group: { products: unknown[] }) => group.products.length === 0)).toBe(true);
   });
 });

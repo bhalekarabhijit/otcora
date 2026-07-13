@@ -23,9 +23,9 @@ export const ingredientRules: IngredientRule[] = [
   },
   {
     patterns: ["aceclofenac", "diclofenac", "ibuprofen", "naproxen", "etoricoxib", "nimesulide", "piroxicam", "ketorolac"],
-    symptomIds: ["body-pain", "joint-pain", "back-pain", "toothache", "menstrual-cramps", "arthritis-pain"],
+    symptomIds: ["fever", "body-pain", "joint-pain", "back-pain", "toothache", "menstrual-cramps", "arthritis-pain"],
     indications: ["Pain and inflammation", "Joint or muscle pain"],
-    warnings: ["NSAIDs can irritate the stomach and may not be suitable in kidney disease, ulcers, pregnancy, or blood thinner use."]
+    warnings: ["NSAIDs can irritate the stomach and may not be suitable in kidney disease, ulcers, pregnancy, asthma, dehydration, or blood thinner use.", "Do not use an NSAID for fever until dengue has been ruled out because it can increase bleeding risk."]
   },
   {
     patterns: ["cetirizine", "levocetirizine", "fexofenadine", "chlorpheniramine", "pheniramine", "loratadine", "desloratadine", "bilastine", "hydroxyzine"],
@@ -36,14 +36,14 @@ export const ingredientRules: IngredientRule[] = [
   },
   {
     patterns: ["ambroxol", "guaifenesin", "bromhexine", "acetylcysteine"],
-    symptomIds: ["cough", "chest-congestion"],
+    symptomIds: ["chest-congestion"],
     indications: ["Wet cough", "Chest congestion"],
     warnings: ["Seek care if cough includes breathlessness, blood, chest pain, or lasts more than 2 weeks."],
     otcEligible: true
   },
   {
     patterns: ["dextromethorphan", "noscapine", "pholcodine"],
-    symptomIds: ["dry-cough", "cough"],
+    symptomIds: ["dry-cough"],
     indications: ["Dry cough"],
     warnings: ["Do not use for persistent cough with breathing difficulty unless advised by a clinician."],
     otcEligible: true
@@ -91,7 +91,7 @@ export const ingredientRules: IngredientRule[] = [
   },
   {
     patterns: ["salbutamol", "levosalbutamol", "formoterol", "salmeterol", "budesonide", "ipratropium", "montelukast", "acebrophylline", "theophylline"],
-    symptomIds: ["wheezing", "asthma", "breathlessness", "cough"],
+    symptomIds: ["wheezing", "asthma", "breathlessness"],
     indications: ["Wheezing", "Asthma or airway symptoms"],
     warnings: ["Breathlessness, blue lips, chest tightness, or severe wheezing can be urgent."]
   },

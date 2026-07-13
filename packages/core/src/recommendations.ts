@@ -1,5 +1,7 @@
 import { medicines } from "./medicines";
+import { matchCombinationPolicy } from "./combination-policies";
 import { getSymptomsByIds } from "./symptoms";
+import { buildTreatmentPlans, recommendationFollowUpSymptoms } from "./treatment-plans";
 import type {
   CompositionRecommendationGroup,
   Medicine,
@@ -16,6 +18,7 @@ const disclaimer =
 const productsPerComposition = 4;
 const otcGroupLimit = 6;
 const prescriptionGroupLimit = 6;
+const pharmacistGroupLimit = 4;
 const indexedProductsPerComposition = 8;
 
 const commonBrandPriorities: Array<[string, number]> = [
@@ -42,7 +45,7 @@ const commonBrandPriorities: Array<[string, number]> = [
 ];
 
 const prescriptionContextPatterns: Record<string, string[]> = {
-  cough: ["acetylcysteine", "montelukast", "salbutamol", "levosalbutamol", "budesonide", "formoterol", "arformoterol", "ipratropium", "acebrophylline", "theophylline"],
+  fever: ["ibuprofen"],
   "dry-cough": ["dextromethorphan", "noscapine", "pholcodine"],
   "chest-congestion": ["acetylcysteine", "bromhexine", "ambroxol"],
   acidity: ["pantoprazole", "omeprazole", "esomeprazole", "rabeprazole", "dexrabeprazole", "famotidine"],
@@ -288,7 +291,10 @@ export function recommendMedicines(request: RecommendationRequest): Recommendati
       prescription: [],
       avoid: [],
       otcGroups: [],
+      pharmacistGroups: [],
       prescriptionGroups: [],
+      treatmentPlans: [],
+      followUpSymptoms: [],
       seekCare,
       selfCareBlocked: true,
       disclaimer
@@ -298,7 +304,7 @@ export function recommendMedicines(request: RecommendationRequest): Recommendati
   const ranked = candidateMedicinesForSymptoms(symptomIds)
     .map((medicine) => toRecommendationItem(medicine, symptomIds, request))
     .filter((item) => item.matchScore > 0)
-    .filter((item) => isRelevantCombination(item.medicine, symptomIds))
+    .filter((item) => isRelevantMedicine(item.medicine, symptomIds))
     .sort(compareRecommendationItems);
 
   const avoid = ranked.filter((item) => shouldAvoid(item, request));
@@ -310,26 +316,44 @@ export function recommendMedicines(request: RecommendationRequest): Recommendati
     otcGroupLimit
   );
   const otcCompositionIds = new Set(otcGroups.map((group) => group.id));
+  const pharmacistGroups = groupRecommendationItems(
+    usable.filter((item) => item.medicine.prescriptionStatus === "unknown"
+      && isAllowedPharmacistContext(item.medicine, selectedSymptomIds)),
+    "unknown",
+    pharmacistGroupLimit + otcCompositionIds.size
+  ).filter((group) => !otcCompositionIds.has(group.id)).slice(0, pharmacistGroupLimit);
+  const unavailableCompositionIds = new Set([
+    ...otcCompositionIds,
+    ...pharmacistGroups.map((group) => group.id)
+  ]);
   const prescriptionGroups = groupRecommendationItems(
     usable.filter((item) => item.medicine.prescriptionStatus === "prescription"
       && isAllowedPrescriptionContext(item.medicine, selectedSymptomIds)),
     "prescription",
-    prescriptionGroupLimit + otcCompositionIds.size
-  ).filter((group) => !otcCompositionIds.has(group.id)).slice(0, prescriptionGroupLimit);
+    prescriptionGroupLimit + unavailableCompositionIds.size
+  ).filter((group) => !unavailableCompositionIds.has(group.id)).slice(0, prescriptionGroupLimit);
+  const treatmentPlans = buildTreatmentPlans(selectedSymptomIds, {
+    otc: otcGroups,
+    pharmacist: pharmacistGroups,
+    prescription: prescriptionGroups
+  });
 
   return {
     otc: otcGroups.flatMap((group) => group.products),
     prescription: prescriptionGroups.flatMap((group) => group.products),
     avoid: avoid.slice(0, 12),
     otcGroups,
+    pharmacistGroups,
     prescriptionGroups,
+    treatmentPlans,
+    followUpSymptoms: recommendationFollowUpSymptoms(selectedSymptomIds),
     seekCare,
     selfCareBlocked: false,
     disclaimer
   };
 }
 
-function isRelevantCombination(medicine: Medicine, symptomIds: Set<string>): boolean {
+function isRelevantMedicine(medicine: Medicine, symptomIds: Set<string>): boolean {
   const ingredients = ingredientNames(medicine.composition ?? "").map((ingredient) => ingredient.toLowerCase());
   if (ingredients.length === 1
     && ["simethicone", "dimethicone"].includes(ingredients[0] ?? "")
@@ -338,35 +362,33 @@ function isRelevantCombination(medicine: Medicine, symptomIds: Set<string>): boo
     return false;
   }
 
-  if (ingredients.length <= 1 || medicine.prescriptionStatus !== "otc") return true;
-
-  const selected = [...symptomIds];
-  const matchedCount = medicine.symptomIds.filter((symptomId) => symptomIds.has(symptomId)).length;
-  if (matchedCount >= 2) return true;
-
-  if (sameIngredientSet(ingredients, ["caffeine", "paracetamol"])) {
-    return selected.some((symptomId) => symptomId === "headache" || symptomId === "migraine");
-  }
-
-  const antacidIngredients = new Set(["magaldrate", "simethicone", "dimethicone", "alginic acid"]);
-  if (ingredients.every((ingredient) => antacidIngredients.has(ingredient))) {
-    return selected.some((symptomId) => ["acidity", "heartburn", "gas", "indigestion"].includes(symptomId));
-  }
-
-  return false;
-}
-
-function sameIngredientSet(actual: string[], expected: string[]): boolean {
-  return actual.length === expected.length && expected.every((ingredient) => actual.includes(ingredient));
+  if (ingredients.length <= 1) return true;
+  const lane = medicine.prescriptionStatus === "otc"
+    ? "otc"
+    : medicine.prescriptionStatus === "unknown" ? "pharmacist" : "prescription";
+  return Boolean(matchCombinationPolicy(medicine.composition ?? "", symptomIds, lane));
 }
 
 function isAllowedPrescriptionContext(medicine: Medicine, symptomIds: string[]): boolean {
   const composition = medicine.composition?.toLowerCase() ?? "";
-  if (!composition || composition.includes("+")) return false;
+  if (!composition) return false;
+  if (composition.includes("+")) {
+    return Boolean(matchCombinationPolicy(composition, symptomIds, "prescription"));
+  }
   const ingredient = composition.replace(/\s*\([^)]*\)/g, "").trim();
+  if (ingredient === "ibuprofen"
+    && symptomIds.some((symptomId) => ["dehydration", "diarrhea", "loose-motion", "vomiting"].includes(symptomId))) {
+    return false;
+  }
   return symptomIds.some((symptomId) =>
     (prescriptionContextPatterns[symptomId] ?? []).includes(ingredient)
   );
+}
+
+function isAllowedPharmacistContext(medicine: Medicine, symptomIds: string[]): boolean {
+  if (!medicine.composition?.includes("+")) return false;
+  if (medicine.form !== "Tablet" && medicine.form !== "Capsule") return false;
+  return Boolean(matchCombinationPolicy(medicine.composition, symptomIds, "pharmacist"));
 }
 
 function buildSymptomIndex(catalog: Medicine[]): Map<string, Medicine[]> {
@@ -516,6 +538,9 @@ function toRecommendationItem(
     reasons: matchedSymptoms.map((symptomId) => "May help with " + symptomLabel(symptomId) + " symptoms."),
     cautions: [
       ...medicine.warnings,
+      ...(symptomIds.has("fever") && /\bibuprofen\b/i.test(medicine.composition ?? "")
+        ? ["Do not use ibuprofen for an undiagnosed fever until dengue has been ruled out; dengue can increase bleeding risk."]
+        : []),
       ...(medicine.prescriptionStatus === "prescription" ? ["Requires a valid prescription and doctor guidance."] : []),
       ...(medicine.prescriptionStatus === "unknown" ? ["Prescription status is not confirmed in the catalog."] : []),
       ...(allergyHit ? ["Possible allergy match based on your context."] : [])
@@ -566,7 +591,7 @@ function medicineQualityScore(medicine: Medicine, matchedSymptoms: string[]): nu
 function compositionGroupKey(medicine: Medicine): string {
   const ingredients = ingredientNames(medicine.composition ?? medicine.genericName ?? medicine.name);
   const meaningful = ingredients.length > 0 ? ingredients : [medicine.genericName ?? medicine.name];
-  return meaningful.map(normalizeIngredientName).filter(Boolean).join("+").toLowerCase();
+  return meaningful.map(normalizeIngredientName).filter(Boolean).sort((a, b) => a.localeCompare(b)).join("+").toLowerCase();
 }
 
 function compositionGroupTitle(medicine: Medicine | undefined, key: string): string {

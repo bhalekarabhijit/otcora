@@ -14,16 +14,25 @@ describe("recommendMedicines", () => {
   const adultContext = { adultConfirmed: true as const };
 
   it("uses the imported catalog and separates prescription context", () => {
-    const result = recommendMedicines({ symptomIds: ["cough"], context: adultContext });
+    const result = recommendMedicines({ symptomIds: ["chest-congestion"], context: adultContext });
     expect(result.otcGroups.length).toBeGreaterThan(0);
     expect(result.prescriptionGroups.length).toBeGreaterThan(0);
     expect(result.otc.every((item) => item.medicine.prescriptionStatus === "otc")).toBe(true);
     expect(result.prescription.every((item) => item.medicine.prescriptionStatus === "prescription")).toBe(true);
   });
 
-  it("does not invent prescription context for a general fever", () => {
-    const result = recommendMedicines({ symptomIds: ["fever"], context: adultContext });
+  it("asks for cough type before showing cough medicines", () => {
+    const result = recommendMedicines({ symptomIds: ["cough"], context: adultContext });
+
+    expect(result.otcGroups).toHaveLength(0);
     expect(result.prescriptionGroups).toHaveLength(0);
+    expect(result.followUpSymptoms.map((symptom) => symptom.id)).toEqual(["dry-cough", "chest-congestion"]);
+    expect(result.seekCare.some((item) => item.title === "Breathing difficulty or chest pain")).toBe(true);
+  });
+
+  it("limits general fever prescription context to ibuprofen", () => {
+    const result = recommendMedicines({ symptomIds: ["fever"], context: adultContext });
+    expect(result.prescriptionGroups.map((group) => group.title)).toEqual(["Ibuprofen"]);
   });
 
   it("keeps cold combinations out of a fever-only result", () => {
@@ -32,12 +41,36 @@ describe("recommendMedicines", () => {
     expect(result.otcGroups.map((group) => group.title)).toEqual(["Paracetamol"]);
   });
 
+  it("keeps an oral NSAID in prescription context with dengue-risk guidance", () => {
+    const result = recommendMedicines({ symptomIds: ["fever"], context: adultContext });
+
+    expect(result.prescriptionGroups.some((group) => group.title === "Ibuprofen")).toBe(true);
+    const ibuprofen = result.prescriptionGroups.find((group) => group.title === "Ibuprofen");
+    expect(ibuprofen?.cautions.join(" ").toLowerCase()).toContain("dengue");
+  });
+
+  it("asks about associated symptoms when fever is selected alone", () => {
+    const result = recommendMedicines({ symptomIds: ["fever"], context: adultContext });
+
+    expect(result.treatmentPlans[0]?.steps.some((step) => step.purpose === "Fever discomfort")).toBe(true);
+    expect(result.followUpSymptoms.map((symptom) => symptom.id)).toEqual(expect.arrayContaining([
+      "body-pain",
+      "blocked-nose",
+      "dry-cough",
+      "chest-congestion",
+      "sore-throat",
+      "dehydration"
+    ]));
+  });
+
   it("shows lubricant eye drops and separates prescription allergy drops", () => {
     const result = recommendMedicines({ symptomIds: ["eye-allergy"], context: adultContext });
 
     expect(result.otcGroups.some((group) => group.title === "Carboxymethylcellulose")).toBe(true);
     expect(result.prescriptionGroups.some((group) => group.title === "Olopatadine")).toBe(true);
     expect(result.seekCare.some((item) => item.title === "Eye warning signs")).toBe(true);
+    expect(result.treatmentPlans.flatMap((plan) => plan.steps)
+      .some((step) => step.alternatives.some((item) => item.title === "Carboxymethylcellulose"))).toBe(true);
   });
 
   it("gives every searchable symptom a meaningful outcome", () => {
@@ -52,6 +85,20 @@ describe("recommendMedicines", () => {
     }
   });
 
+  it("builds a plan whenever a non-blocked result contains medicine context", () => {
+    for (const symptom of symptoms) {
+      const result = recommendMedicines({ symptomIds: [symptom.id], context: adultContext });
+      const hasMedicineContext = result.otcGroups.length > 0
+        || result.pharmacistGroups.length > 0
+        || result.prescriptionGroups.length > 0;
+
+      if (!result.selfCareBlocked && hasMedicineContext) {
+        expect(result.treatmentPlans.length, `${symptom.id} has groups but no treatment plan`).toBeGreaterThan(0);
+        expect(result.treatmentPlans.flatMap((plan) => plan.steps).length).toBeGreaterThan(0);
+      }
+    }
+  });
+
   it("adds relevant OTC compositions as more symptoms are selected", () => {
     const fever = recommendMedicines({ symptomIds: ["fever"], context: adultContext });
     const combined = recommendMedicines({
@@ -61,8 +108,101 @@ describe("recommendMedicines", () => {
 
     expect(fever.otcGroups.map((group) => group.title)).toContain("Paracetamol");
     expect(combined.otcGroups.length).toBeGreaterThan(fever.otcGroups.length);
-    expect(combined.otcGroups.some((group) => group.title.includes("Phenylephrine"))).toBe(true);
+    expect(combined.otcGroups.some((group) => group.title.includes("Phenylephrine"))).toBe(false);
+    expect(combined.pharmacistGroups.some((group) => group.title === "Paracetamol + Caffeine + Phenylephrine")).toBe(true);
     expect(combined.otcGroups.some((group) => group.title.includes("Oxymetazoline"))).toBe(true);
+  });
+
+  it("builds separate purpose steps for fever with nasal congestion", () => {
+    const result = recommendMedicines({
+      symptomIds: ["fever", "cold", "blocked-nose"],
+      context: adultContext
+    });
+    const steps = result.treatmentPlans.flatMap((plan) => plan.steps);
+    const feverStep = steps.find((step) => step.purpose === "Fever discomfort");
+    const noseStep = steps.find((step) => step.purpose === "Blocked nose");
+    const combinationStep = steps.find((step) => step.kind === "replacement-combination");
+
+    expect(feverStep?.alternatives.map((item) => item.title)).toContain("Paracetamol");
+    expect(noseStep?.alternatives.map((item) => item.title)).toEqual(expect.arrayContaining(["Xylometazoline", "Oxymetazoline"]));
+    expect(combinationStep?.alternatives.map((item) => item.title)).toContain("Paracetamol + Caffeine + Phenylephrine");
+    expect(combinationStep?.instruction.toLowerCase()).toContain("replaces");
+  });
+
+  it("adds ORS as a separate plan step for fever with dehydration", () => {
+    const result = recommendMedicines({
+      symptomIds: ["fever", "dehydration"],
+      context: adultContext
+    });
+    const steps = result.treatmentPlans.flatMap((plan) => plan.steps);
+
+    expect(steps.some((step) => step.purpose === "Fever discomfort"
+      && step.alternatives.some((item) => item.title === "Paracetamol"))).toBe(true);
+    expect(steps.some((step) => step.purpose === "Fluid replacement"
+      && step.alternatives.some((item) => item.title === "Oral Rehydration Salts"))).toBe(true);
+    expect(result.prescriptionGroups.some((group) => group.title === "Ibuprofen")).toBe(false);
+  });
+
+  it("separates fever relief from wet-cough treatment", () => {
+    const result = recommendMedicines({
+      symptomIds: ["fever", "chest-congestion"],
+      context: adultContext
+    });
+    const steps = result.treatmentPlans.flatMap((plan) => plan.steps);
+
+    expect(steps.some((step) => step.purpose === "Fever discomfort")).toBe(true);
+    expect(steps.some((step) => step.purpose === "Wet cough or chest congestion"
+      && step.alternatives.some((item) => ["Ambroxol", "Guaifenesin"].includes(item.title)))).toBe(true);
+  });
+
+  it("keeps dry-cough treatment and the ibuprofen alternative doctor-only", () => {
+    const result = recommendMedicines({
+      symptomIds: ["fever", "dry-cough"],
+      context: adultContext
+    });
+    const steps = result.treatmentPlans.flatMap((plan) => plan.steps);
+    const dryCough = steps.find((step) => step.purpose === "Dry cough context");
+    const feverAlternative = steps.find((step) => step.purpose === "Alternative fever relief");
+
+    expect(dryCough?.alternatives.some((item) => ["Noscapine", "Pholcodine"].includes(item.title))).toBe(true);
+    expect(dryCough?.alternatives.every((item) => item.lane === "prescription")).toBe(true);
+    expect(feverAlternative?.alternatives.map((item) => item.title)).toEqual(["Ibuprofen"]);
+  });
+
+  it("does not leak infection medicines into an undifferentiated fever plan", () => {
+    const result = recommendMedicines({ symptomIds: ["fever"], context: adultContext });
+    const titles = [
+      ...result.otcGroups,
+      ...result.pharmacistGroups,
+      ...result.prescriptionGroups
+    ].map((group) => group.title.toLowerCase());
+
+    expect(titles.some((title) => /azithromycin|amoxicillin|acyclovir|oseltamivir/.test(title))).toBe(false);
+  });
+
+  it("never repeats a composition across plan alternatives", () => {
+    const result = recommendMedicines({
+      symptomIds: ["fever", "cold", "blocked-nose"],
+      context: adultContext
+    });
+    const ids = result.treatmentPlans.flatMap((plan) => plan.steps)
+      .flatMap((step) => step.alternatives.map((item) => `${step.kind}:${item.compositionId}`));
+
+    expect(new Set(ids).size).toBe(ids.length);
+  });
+
+  it("deduplicates combinations whose source ingredient order differs", () => {
+    const result = recommendMedicines({
+      symptomIds: ["fever", "cold", "blocked-nose"],
+      context: adultContext
+    });
+    const normalized = result.prescriptionGroups.map((group) => group.title
+      .split("+")
+      .map((ingredient) => ingredient.trim().toLowerCase())
+      .sort()
+      .join("+"));
+
+    expect(new Set(normalized).size).toBe(normalized.length);
   });
 
   it("returns adult nasal decongestant examples for blocked nose", () => {

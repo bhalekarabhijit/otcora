@@ -219,9 +219,7 @@ function isCuratedAdultOtc(composition: string, form: string | undefined, name: 
 
   const adultOralForm = form === "Tablet" || form === "Capsule";
   if (adultOralForm && [
-    ["caffeine", "paracetamol"],
-    ["paracetamol", "phenylephrine"],
-    ["caffeine", "paracetamol", "phenylephrine"]
+    ["caffeine", "paracetamol"]
   ].some((allowed) => sameIngredientSet(ingredients, allowed))) {
     return true;
   }

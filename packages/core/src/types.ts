@@ -77,12 +77,38 @@ export interface SeekCareItem {
   severity: Severity;
 }
 
+export type RecommendationLane = "otc" | "pharmacist" | "prescription";
+
+export interface TreatmentPlanAlternative {
+  compositionId: string;
+  title: string;
+  lane: RecommendationLane;
+}
+
+export interface TreatmentPlanStep {
+  id: string;
+  purpose: string;
+  instruction: string;
+  kind: "choose-one" | "add-on" | "replacement-combination";
+  alternatives: TreatmentPlanAlternative[];
+}
+
+export interface TreatmentPlan {
+  id: string;
+  title: string;
+  summary: string;
+  steps: TreatmentPlanStep[];
+}
+
 export interface RecommendationResponse {
   otc: RecommendationItem[];
   prescription: RecommendationItem[];
   avoid: RecommendationItem[];
   otcGroups: CompositionRecommendationGroup[];
+  pharmacistGroups: CompositionRecommendationGroup[];
   prescriptionGroups: CompositionRecommendationGroup[];
+  treatmentPlans: TreatmentPlan[];
+  followUpSymptoms: Symptom[];
   seekCare: SeekCareItem[];
   selfCareBlocked: boolean;
   disclaimer: string;
