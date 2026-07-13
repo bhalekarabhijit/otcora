@@ -42,7 +42,7 @@ export const ingredientRules: IngredientRule[] = [
     otcEligible: true
   },
   {
-    patterns: ["dextromethorphan", "noscapine", "pholcodine"],
+    patterns: ["dextromethorphan", "noscapine"],
     symptomIds: ["dry-cough"],
     indications: ["Dry cough"],
     warnings: ["Do not use for persistent cough with breathing difficulty unless advised by a clinician."],

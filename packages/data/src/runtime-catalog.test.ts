@@ -1,4 +1,6 @@
 import { describe, expect, it } from "vitest";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { compactRuntimeCatalog } from "./runtime-catalog";
 
 describe("compactRuntimeCatalog", () => {
@@ -17,5 +19,17 @@ describe("compactRuntimeCatalog", () => {
       "rx-a",
       "rx-c"
     ]);
+  });
+
+  it("keeps the committed runtime catalog free of unused price and source-row fields", () => {
+    const records = JSON.parse(readFileSync(
+      resolve(process.cwd(), "data/generated/seed_medicines.json"),
+      "utf8"
+    )) as Array<Record<string, unknown>>;
+
+    expect(records.length).toBeGreaterThan(0);
+    expect(records.every((record) =>
+      !("mrp" in record) && !("price" in record) && !("rowNumber" in record)
+    )).toBe(true);
   });
 });

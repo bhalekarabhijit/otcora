@@ -1,9 +1,10 @@
 "use client";
 
 import type { RecommendationResponse, Symptom, UserContext } from "@otcora/core";
-import { AlertTriangle, Check, FileText, ListChecks, Loader2, MessageCircle, Pill, Search, ShieldCheck, X } from "lucide-react";
+import { AlertTriangle, ArrowRight, Check, Droplets, FileText, ListChecks, Loader2, MessageCircle, Pill, Search, ShieldCheck, Wind, X } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { LatestRequest } from "../lib/latest-request";
 
 export function SymptomConsole() {
   const [query, setQuery] = useState("");
@@ -18,6 +19,7 @@ export function SymptomConsole() {
   const [adultConfirmed, setAdultConfirmed] = useState(false);
   const [allergyText, setAllergyText] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
+  const recommendationRequests = useRef(new LatestRequest());
   const [hydrated, setHydrated] = useState(false);
 
   const selectedIds = useMemo(() => new Set(selected.map((symptom) => symptom.id)), [selected]);
@@ -27,6 +29,7 @@ export function SymptomConsole() {
       const saved = window.sessionStorage.getItem("otcora.symptom-console");
       if (saved) {
         const parsed = JSON.parse(saved) as {
+          version?: number;
           query?: string;
           selected?: Symptom[];
           result?: RecommendationResponse | null;
@@ -35,7 +38,7 @@ export function SymptomConsole() {
         };
         setQuery(parsed.query ?? "");
         setSelected(parsed.selected ?? []);
-        setResult(parsed.result ?? null);
+        setResult(parsed.version === 2 ? parsed.result ?? null : null);
         setAdultConfirmed(Boolean(parsed.adultConfirmed));
         setAllergyText(parsed.allergyText ?? "");
       }
@@ -51,6 +54,7 @@ export function SymptomConsole() {
       return;
     }
     window.sessionStorage.setItem("otcora.symptom-console", JSON.stringify({
+      version: 2,
       query,
       selected,
       result,
@@ -58,6 +62,11 @@ export function SymptomConsole() {
       allergyText
     }));
   }, [adultConfirmed, allergyText, hydrated, query, result, selected]);
+
+  useEffect(() => {
+    const requests = recommendationRequests.current;
+    return () => requests.cancel();
+  }, []);
 
   useEffect(() => {
     if (!hydrated) return;
@@ -68,7 +77,10 @@ export function SymptomConsole() {
       .then((response) => response.json())
       .then((payload: { symptoms: Symptom[] }) => {
         const exact = payload.symptoms.find((symptom) => symptom.id === symptomId);
-        if (exact) setSelected((current) => current.some((item) => item.id === exact.id) ? current : [...current, exact]);
+        if (exact) {
+          invalidateRecommendations();
+          setSelected((current) => current.some((item) => item.id === exact.id) ? current : [...current, exact]);
+        }
       })
       .catch(() => undefined);
   }, [hydrated, selected]);
@@ -99,24 +111,30 @@ export function SymptomConsole() {
     };
   }, [query, selectedIds]);
 
+  function invalidateRecommendations() {
+    recommendationRequests.current.cancel();
+    setLoadingResults(false);
+    setResult(null);
+  }
+
   function addSymptom(symptom: Symptom) {
+    invalidateRecommendations();
     setSelected((current) => current.some((item) => item.id === symptom.id) ? current : [...current, symptom]);
     setQuery("");
-    setResult(null);
     setSuggestionsOpen(false);
   }
 
   function removeSymptom(symptomId: string) {
+    invalidateRecommendations();
     setSelected((current) => current.filter((symptom) => symptom.id !== symptomId));
-    setResult(null);
   }
 
   function clearResults() {
+    invalidateRecommendations();
     setQuery("");
     setSuggestions([]);
     setSuggestionsOpen(false);
     setSelected([]);
-    setResult(null);
     setError(null);
     setAdultConfirmed(false);
     setAllergyText("");
@@ -124,8 +142,8 @@ export function SymptomConsole() {
     inputRef.current?.focus();
   }
 
-  async function submit() {
-    if (selected.length === 0) {
+  async function requestRecommendations(symptomsToSearch: Symptom[]) {
+    if (symptomsToSearch.length === 0) {
       setError("Choose at least one symptom to see options.");
       return;
     }
@@ -134,6 +152,7 @@ export function SymptomConsole() {
       return;
     }
 
+    const request = recommendationRequests.current.start();
     setError(null);
     setLoadingResults(true);
     const allergies = allergyText
@@ -150,16 +169,41 @@ export function SymptomConsole() {
       const response = await fetch("/api/recommendations", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ symptomIds: selected.map((symptom) => symptom.id), context })
+        signal: request.signal,
+        body: JSON.stringify({ symptomIds: symptomsToSearch.map((symptom) => symptom.id), context })
       });
       const payload = await response.json() as RecommendationResponse | { error?: string };
       if (!response.ok) throw new Error("error" in payload ? payload.error ?? "Unable to fetch recommendations." : "Unable to fetch recommendations.");
+      if (!recommendationRequests.current.isCurrent(request)) return;
       setResult(payload as RecommendationResponse);
     } catch (caught) {
+      if (!recommendationRequests.current.isCurrent(request)) return;
       setError(caught instanceof Error ? caught.message : "Something went wrong.");
     } finally {
-      setLoadingResults(false);
+      if (recommendationRequests.current.finish(request)) {
+        setLoadingResults(false);
+      }
     }
+  }
+
+  async function submit() {
+    await requestRecommendations(selected);
+  }
+
+  function refineSymptom(symptom: Symptom) {
+    const coughTypes = new Set(["cough", "dry-cough", "chest-congestion"]);
+    const replacesCoughType = symptom.id === "dry-cough" || symptom.id === "chest-congestion";
+    const retained = replacesCoughType
+      ? selected.filter((item) => !coughTypes.has(item.id))
+      : selected;
+    const nextSelected = retained.some((item) => item.id === symptom.id)
+      ? retained
+      : [...retained, symptom];
+    setSelected(nextSelected);
+    setQuery("");
+    setResult(null);
+    setSuggestionsOpen(false);
+    void requestRecommendations(nextSelected);
   }
 
   function handleKeyDown(event: React.KeyboardEvent<HTMLInputElement>) {
@@ -265,8 +309,8 @@ export function SymptomConsole() {
           <input
             value={allergyText}
             onChange={(event) => {
+              invalidateRecommendations();
               setAllergyText(event.target.value);
-              setResult(null);
             }}
             placeholder="Example: paracetamol, cetirizine"
             className="mt-2 h-11 w-full rounded-md border border-line bg-surface px-3 text-sm outline-none focus:border-trust"
@@ -279,8 +323,8 @@ export function SymptomConsole() {
           type="checkbox"
           checked={adultConfirmed}
           onChange={(event) => {
+            invalidateRecommendations();
             setAdultConfirmed(event.target.checked);
-            setResult(null);
           }}
           className="mt-0.5 h-4 w-4 shrink-0 accent-trust"
         />
@@ -323,17 +367,17 @@ export function SymptomConsole() {
         </div>
       ) : null}
 
-      {result ? <RecommendationPanel result={result} onAddSymptom={addSymptom} /> : null}
+      {result ? <RecommendationPanel result={result} onRefineSymptom={refineSymptom} /> : null}
     </section>
   );
 }
 
 function RecommendationPanel({
   result,
-  onAddSymptom
+  onRefineSymptom
 }: {
   result: RecommendationResponse;
-  onAddSymptom: (symptom: Symptom) => void;
+  onRefineSymptom: (symptom: Symptom) => void;
 }) {
   return (
     <div className="mt-6 space-y-4">
@@ -355,6 +399,10 @@ function RecommendationPanel({
 
       {!result.selfCareBlocked ? (
         <>
+          {result.clarification ? (
+            <ClarificationPanel clarification={result.clarification} onSelect={onRefineSymptom} />
+          ) : null}
+
           {result.treatmentPlans.length > 0 ? <TreatmentPlanSection plans={result.treatmentPlans} /> : null}
 
           {result.followUpSymptoms.length > 0 ? (
@@ -369,37 +417,44 @@ function RecommendationPanel({
                   <button
                     type="button"
                     key={symptom.id}
-                    onClick={() => onAddSymptom(symptom)}
-                    className="rounded-md border border-line bg-surface px-3 py-2 text-sm font-semibold text-ink transition hover:border-trust hover:text-trust"
+                    onClick={() => onRefineSymptom(symptom)}
+                    className="inline-flex items-center gap-2 rounded-md border border-line bg-surface px-3 py-2 text-sm font-semibold text-ink transition hover:border-trust hover:text-trust"
                   >
-                    + {symptom.label}
+                    {symptom.label}
+                    <ArrowRight aria-hidden="true" size={15} />
                   </button>
                 ))}
               </div>
             </section>
           ) : null}
 
-          <CompositionSection
-            title="OTC options by composition"
-            icon={<ShieldCheck aria-hidden="true" size={18} />}
-            groups={result.otcGroups}
-            tone="otc"
-            empty="No suitable OTC examples were found. Ask a pharmacist instead of trying a prescription product."
-          />
-          <CompositionSection
-            title="Ask a pharmacist first"
-            icon={<MessageCircle aria-hidden="true" size={18} />}
-            groups={result.pharmacistGroups}
-            tone="pharmacist"
-            empty="No pharmacist-check compositions are needed for this symptom set."
-          />
-          <CompositionSection
-            title="Prescription context only"
-            icon={<FileText aria-hidden="true" size={18} />}
-            groups={result.prescriptionGroups}
-            tone="rx"
-            empty="No prescription context is shown for this symptom set."
-          />
+          {result.otcGroups.length > 0 ? (
+            <CompositionSection
+              title="OTC options by composition"
+              icon={<ShieldCheck aria-hidden="true" size={18} />}
+              groups={result.otcGroups}
+              tone="otc"
+              empty="No suitable OTC examples were found. Ask a pharmacist instead of trying a prescription product."
+            />
+          ) : null}
+          {result.pharmacistGroups.length > 0 ? (
+            <CompositionSection
+              title="Ask a pharmacist first"
+              icon={<MessageCircle aria-hidden="true" size={18} />}
+              groups={result.pharmacistGroups}
+              tone="pharmacist"
+              empty="No pharmacist-check compositions are needed for this symptom set."
+            />
+          ) : null}
+          {result.prescriptionGroups.length > 0 ? (
+            <CompositionSection
+              title="Prescription context only"
+              icon={<FileText aria-hidden="true" size={18} />}
+              groups={result.prescriptionGroups}
+              tone="rx"
+              empty="No prescription context is shown for this symptom set."
+            />
+          ) : null}
           {result.avoid.length > 0 ? (
             <MedicineSection
               title="Avoid or review first"
@@ -419,6 +474,64 @@ function RecommendationPanel({
 
 type RecommendationItem = RecommendationResponse["otc"][number];
 type CompositionGroup = RecommendationResponse["otcGroups"][number];
+type Clarification = NonNullable<RecommendationResponse["clarification"]>;
+
+function ClarificationPanel({
+  clarification,
+  onSelect
+}: {
+  clarification: Clarification;
+  onSelect: (symptom: Symptom) => void;
+}) {
+  return (
+    <section aria-labelledby={`${clarification.id}-question`} className="rounded-md border border-trust/30 bg-clinical p-4 sm:p-5">
+      <p className="text-xs font-semibold uppercase tracking-[0.08em] text-trust">{clarification.title}</p>
+      <h3 id={`${clarification.id}-question`} className="mt-2 text-lg font-semibold text-ink">{clarification.question}</h3>
+      <p className="mt-2 max-w-2xl text-sm leading-6 text-muted">{clarification.description}</p>
+
+      <div className="mt-4 grid gap-3 sm:grid-cols-2">
+        {clarification.options.map((option) => {
+          const Icon = option.symptom.id === "chest-congestion" ? Droplets : Wind;
+          return (
+            <button
+              type="button"
+              key={option.symptom.id}
+              onClick={() => onSelect(option.symptom)}
+              className="group flex min-h-28 items-start gap-3 rounded-md border border-line bg-white p-4 text-left transition hover:border-trust hover:bg-surface focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-trust/20"
+            >
+              <span className="grid h-9 w-9 shrink-0 place-items-center rounded-md bg-trust text-white">
+                <Icon aria-hidden="true" size={19} />
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block font-semibold text-ink">{option.title}</span>
+                <span className="mt-1 block text-sm leading-5 text-muted">{option.description}</span>
+              </span>
+              <ArrowRight aria-hidden="true" size={18} className="mt-2 shrink-0 text-trust transition group-hover:translate-x-0.5" />
+            </button>
+          );
+        })}
+      </div>
+
+      <div className="mt-5 border-t border-line pt-4">
+        <h4 className="text-sm font-semibold text-ink">While you decide</h4>
+        <div className="mt-3 grid gap-3 sm:grid-cols-2">
+          {clarification.selfCare.map((item) => (
+            <div key={item.title} className="flex items-start gap-3">
+              <ShieldCheck aria-hidden="true" size={18} className="mt-0.5 shrink-0 text-care" />
+              <div>
+                <p className="text-sm font-semibold text-ink">{item.title}</p>
+                <p className="mt-1 text-sm leading-5 text-muted">{item.description}</p>
+                {item.evidence === "limited-evidence" ? (
+                  <p className="mt-1 text-xs font-medium text-saffron">Symptom relief evidence is limited.</p>
+                ) : null}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
 
 function TreatmentPlanSection({ plans }: { plans: RecommendationResponse["treatmentPlans"] }) {
   const laneClass = {

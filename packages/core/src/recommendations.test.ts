@@ -8,6 +8,12 @@ describe("symptom search", () => {
     expect(searchSymptoms("cou")[0]?.id).toBe("cough");
     expect(searchSymptoms("bp").map((symptom) => symptom.id)).toContain("high-blood-pressure");
   });
+
+  it("prefers a specific cough subtype when the user names it", () => {
+    expect(searchSymptoms("dry cough")[0]?.id).toBe("dry-cough");
+    expect(searchSymptoms("wet cough")[0]?.id).toBe("chest-congestion");
+    expect(searchSymptoms("productive cough")[0]?.id).toBe("chest-congestion");
+  });
 });
 
 describe("recommendMedicines", () => {
@@ -26,8 +32,42 @@ describe("recommendMedicines", () => {
 
     expect(result.otcGroups).toHaveLength(0);
     expect(result.prescriptionGroups).toHaveLength(0);
-    expect(result.followUpSymptoms.map((symptom) => symptom.id)).toEqual(["dry-cough", "chest-congestion"]);
+    expect(result.clarification).toMatchObject({
+      id: "cough-type",
+      question: "Is the cough dry, or are you bringing up phlegm?"
+    });
+    expect(result.clarification?.options.map((option) => option.symptom.id)).toEqual([
+      "dry-cough",
+      "chest-congestion"
+    ]);
+    expect(result.clarification?.selfCare.length).toBeGreaterThan(0);
+    expect(result.followUpSymptoms).toHaveLength(0);
     expect(result.seekCare.some((item) => item.title === "Breathing difficulty or chest pain")).toBe(true);
+  });
+
+  it("does not ask for cough type after a subtype is selected", () => {
+    const dry = recommendMedicines({ symptomIds: ["dry-cough"], context: adultContext });
+    const wet = recommendMedicines({ symptomIds: ["chest-congestion"], context: adultContext });
+
+    expect(dry.clarification).toBeUndefined();
+    expect(wet.clarification).toBeUndefined();
+  });
+
+  it("limits adult dry-cough OTC results to dextromethorphan lozenges and excludes pholcodine", () => {
+    const result = recommendMedicines({ symptomIds: ["dry-cough"], context: adultContext });
+    const dextromethorphan = result.otcGroups.find((group) => group.title === "Dextromethorphan");
+    const allTitles = [
+      ...result.otcGroups,
+      ...result.pharmacistGroups,
+      ...result.prescriptionGroups
+    ].map((group) => group.title);
+
+    expect(dextromethorphan?.products.length).toBeGreaterThan(0);
+    expect(dextromethorphan?.products.every((item) =>
+      item.medicine.form === "Lozenge"
+      && /dextromethorphan hydrobromide \(10mg\)/i.test(item.medicine.composition ?? "")
+    )).toBe(true);
+    expect(allTitles).not.toContain("Pholcodine");
   });
 
   it("limits general fever prescription context to ibuprofen", () => {
@@ -77,6 +117,7 @@ describe("recommendMedicines", () => {
     for (const symptom of symptoms) {
       const result = recommendMedicines({ symptomIds: [symptom.id], context: adultContext });
       const hasOutcome = result.selfCareBlocked
+        || Boolean(result.clarification)
         || result.otcGroups.length > 0
         || result.prescriptionGroups.length > 0
         || result.seekCare.length > 0;
@@ -155,17 +196,20 @@ describe("recommendMedicines", () => {
       && step.alternatives.some((item) => ["Ambroxol", "Guaifenesin"].includes(item.title)))).toBe(true);
   });
 
-  it("keeps dry-cough treatment and the ibuprofen alternative doctor-only", () => {
+  it("keeps dry-cough choices in one step and the ibuprofen alternative doctor-only", () => {
     const result = recommendMedicines({
       symptomIds: ["fever", "dry-cough"],
       context: adultContext
     });
     const steps = result.treatmentPlans.flatMap((plan) => plan.steps);
-    const dryCough = steps.find((step) => step.purpose === "Dry cough context");
+    const dryCough = steps.find((step) => step.purpose === "Dry cough relief");
     const feverAlternative = steps.find((step) => step.purpose === "Alternative fever relief");
 
-    expect(dryCough?.alternatives.some((item) => ["Noscapine", "Pholcodine"].includes(item.title))).toBe(true);
-    expect(dryCough?.alternatives.every((item) => item.lane === "prescription")).toBe(true);
+    expect(dryCough?.alternatives).toEqual(expect.arrayContaining([
+      expect.objectContaining({ title: "Dextromethorphan", lane: "otc" }),
+      expect.objectContaining({ title: "Noscapine", lane: "prescription" })
+    ]));
+    expect(dryCough?.alternatives.some((item) => item.title === "Pholcodine")).toBe(false);
     expect(feverAlternative?.alternatives.map((item) => item.title)).toEqual(["Ibuprofen"]);
   });
 

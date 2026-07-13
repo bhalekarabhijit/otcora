@@ -12,7 +12,7 @@ export interface SeedMedicineRecord {
   price?: string;
   packaging?: string;
   prescriptionRaw?: string;
-  rowNumber: number;
+  rowNumber?: number;
 }
 
 let cachedSeedRecords: SeedMedicineRecord[] | null = null;
@@ -159,7 +159,7 @@ function seedToMedicine(record: SeedMedicineRecord): Medicine | undefined {
     ]),
     source: {
       sourceName: "Imported medicine catalog",
-      sourceUrl: `catalog://medicine-row-${record.rowNumber}`,
+      sourceUrl: "catalog://medicine-record",
       sitemapType: "manual",
       parserVersion: "csv-import-v1",
       confidence: 0.78
@@ -187,6 +187,7 @@ function classifyPrescriptionStatus(
 function isExcludedCatalogRecord(record: SeedMedicineRecord): boolean {
   const text = [record.name, record.manufacturer, record.packaging].filter(Boolean).join(" ");
   return /\btata\b/i.test(text)
+    || /\bpholcodine\b/i.test(record.composition)
     || /\b(?:kid|junior|paediatric|pediatric|baby|infant)\b/i.test(text)
     || /oral drops?/i.test(record.name);
 }
@@ -200,8 +201,12 @@ function isCuratedAdultOtc(composition: string, form: string | undefined, name: 
     return /paracetamol \((500|650)mg\)/i.test(composition);
   }
 
-  if (["ambroxol", "guaifenesin", "dextromethorphan", "simethicone", "dimethicone", "magaldrate", "lactulose", "ispaghula"].includes(singleIngredient ?? "")) {
+  if (["ambroxol", "guaifenesin", "simethicone", "dimethicone", "magaldrate", "lactulose", "ispaghula"].includes(singleIngredient ?? "")) {
     return true;
+  }
+
+  if (/^dextromethorphan(?: hydrobromide)?$/.test(singleIngredient ?? "")) {
+    return form === "Lozenge" && /dextromethorphan hydrobromide \(10mg\)/i.test(composition);
   }
 
   if (["xylometazoline", "oxymetazoline"].includes(singleIngredient ?? "")) {
@@ -246,6 +251,7 @@ function primaryIngredient(composition: string): string {
 
 function inferForm(packaging: string | undefined, name: string): string | undefined {
   const text = `${packaging ?? ""} ${name}`.toLowerCase();
+  if (text.includes("lozenge")) return "Lozenge";
   if (text.includes("tablet")) return "Tablet";
   if (text.includes("capsule")) return "Capsule";
   if (text.includes("syrup")) return "Syrup";

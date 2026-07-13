@@ -1,7 +1,11 @@
 import { medicines } from "./medicines";
 import { matchCombinationPolicy } from "./combination-policies";
 import { getSymptomsByIds } from "./symptoms";
-import { buildTreatmentPlans, recommendationFollowUpSymptoms } from "./treatment-plans";
+import {
+  buildRecommendationClarification,
+  buildTreatmentPlans,
+  recommendationFollowUpSymptoms
+} from "./treatment-plans";
 import type {
   CompositionRecommendationGroup,
   Medicine,
@@ -46,7 +50,7 @@ const commonBrandPriorities: Array<[string, number]> = [
 
 const prescriptionContextPatterns: Record<string, string[]> = {
   fever: ["ibuprofen"],
-  "dry-cough": ["dextromethorphan", "noscapine", "pholcodine"],
+  "dry-cough": ["dextromethorphan", "noscapine"],
   "chest-congestion": ["acetylcysteine", "bromhexine", "ambroxol"],
   acidity: ["pantoprazole", "omeprazole", "esomeprazole", "rabeprazole", "dexrabeprazole", "famotidine"],
   heartburn: ["pantoprazole", "omeprazole", "esomeprazole", "rabeprazole", "dexrabeprazole", "famotidine"],
@@ -337,6 +341,7 @@ export function recommendMedicines(request: RecommendationRequest): Recommendati
     pharmacist: pharmacistGroups,
     prescription: prescriptionGroups
   });
+  const clarification = buildRecommendationClarification(selectedSymptomIds);
 
   return {
     otc: otcGroups.flatMap((group) => group.products),
@@ -346,6 +351,7 @@ export function recommendMedicines(request: RecommendationRequest): Recommendati
     pharmacistGroups,
     prescriptionGroups,
     treatmentPlans,
+    ...(clarification ? { clarification } : {}),
     followUpSymptoms: recommendationFollowUpSymptoms(selectedSymptomIds),
     seekCare,
     selfCareBlocked: false,
@@ -626,6 +632,7 @@ function normalizeIngredientName(value: string): string {
   return value
     .replace(/\s+/g, " ")
     .replace(/\bAcetaminophen\b/gi, "Paracetamol")
+    .replace(/\bDextromethorphan Hydrobromide\b/gi, "Dextromethorphan")
     .trim();
 }
 

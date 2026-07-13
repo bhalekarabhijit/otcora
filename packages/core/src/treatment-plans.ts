@@ -1,6 +1,7 @@
 import { getSymptomsByIds } from "./symptoms";
 import type {
   CompositionRecommendationGroup,
+  RecommendationClarification,
   RecommendationLane,
   Symptom,
   TreatmentPlan,
@@ -67,13 +68,14 @@ export function buildTreatmentPlans(symptomIds: string[], lanes: TreatmentPlanLa
   }
 
   if (selected.has("dry-cough")) {
-    addStep(steps, lanes, {
-      id: "dry-cough-context",
-      purpose: "Dry cough context",
-      instruction: "A clinician must confirm the cough type and choose at most one suitable prescription option.",
-      kind: "choose-one",
-      lane: "prescription",
-      titles: ["Dextromethorphan", "Noscapine", "Pholcodine"]
+    addCrossLaneStep(steps, lanes, {
+      id: "dry-cough-relief",
+      purpose: "Dry cough relief",
+      instruction: "Choose at most one suitable cough suppressant. The doctor-only composition is context, not something to self-start.",
+      candidates: [
+        { lane: "otc", titles: ["Dextromethorphan"] },
+        { lane: "prescription", titles: ["Noscapine"] }
+      ]
     });
   }
 
@@ -152,12 +154,56 @@ function groupMatchesSymptom(group: CompositionRecommendationGroup, symptomId: s
 export function recommendationFollowUpSymptoms(symptomIds: string[]): Symptom[] {
   const selected = new Set(symptomIds);
   const candidates = symptomIds.includes("fever") ? [...feverFollowUps] : [];
-  if (symptomIds.includes("cough")
+  const needsCoughType = needsCoughClarification(symptomIds);
+  return getSymptomsByIds([...new Set(candidates)].filter((id) =>
+    !selected.has(id)
+    && (!needsCoughType || (id !== "dry-cough" && id !== "chest-congestion"))
+  ));
+}
+
+export function buildRecommendationClarification(symptomIds: string[]): RecommendationClarification | undefined {
+  if (!needsCoughClarification(symptomIds)) return undefined;
+
+  const descriptions: Record<string, { title: string; description: string }> = {
+    "dry-cough": {
+      title: "Dry or tickly cough",
+      description: "No mucus or phlegm is coming up. Your throat may feel irritated or tickly."
+    },
+    "chest-congestion": {
+      title: "Wet or chesty cough",
+      description: "You are bringing up mucus or phlegm, or it feels stuck in your chest."
+    }
+  };
+
+  return {
+    id: "cough-type",
+    title: "One quick detail",
+    question: "Is the cough dry, or are you bringing up phlegm?",
+    description: "Dry-cough medicines and mucus-loosening medicines have different roles. Choose the closest description so we do not show the wrong class.",
+    options: getSymptomsByIds(["dry-cough", "chest-congestion"]).map((symptom) => ({
+      symptom,
+      title: descriptions[symptom.id]!.title,
+      description: descriptions[symptom.id]!.description
+    })),
+    selfCare: [
+      {
+        title: "Keep fluids up",
+        description: "Sip water regularly. A warm drink may feel soothing while the cause and cough type are still unclear.",
+        evidence: "supportive-care"
+      },
+      {
+        title: "Soothe throat irritation",
+        description: "A plain cough lozenge may provide short-term comfort. Follow its label and ask a pharmacist if you are unsure whether it suits you.",
+        evidence: "limited-evidence"
+      }
+    ]
+  };
+}
+
+function needsCoughClarification(symptomIds: string[]): boolean {
+  return symptomIds.includes("cough")
     && !symptomIds.includes("dry-cough")
-    && !symptomIds.includes("chest-congestion")) {
-    candidates.push("dry-cough", "chest-congestion");
-  }
-  return getSymptomsByIds([...new Set(candidates)].filter((id) => !selected.has(id)));
+    && !symptomIds.includes("chest-congestion");
 }
 
 function addCombinationSteps(
@@ -196,5 +242,30 @@ function addStep(
     instruction: rule.instruction,
     kind: rule.kind,
     alternatives: groups.map((group) => ({ compositionId: group.id, title: group.title, lane: rule.lane }))
+  });
+}
+
+function addCrossLaneStep(
+  steps: TreatmentPlanStep[],
+  lanes: TreatmentPlanLanes,
+  rule: {
+    id: string;
+    purpose: string;
+    instruction: string;
+    candidates: Array<{ lane: RecommendationLane; titles: string[] }>;
+  }
+): void {
+  const alternatives = rule.candidates.flatMap(({ lane, titles }) =>
+    lanes[lane]
+      .filter((group) => titles.includes(group.title))
+      .map((group) => ({ compositionId: group.id, title: group.title, lane }))
+  );
+  if (alternatives.length === 0) return;
+  steps.push({
+    id: rule.id,
+    purpose: rule.purpose,
+    instruction: rule.instruction,
+    kind: "choose-one",
+    alternatives
   });
 }

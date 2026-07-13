@@ -9,11 +9,8 @@ interface GeneratedSeedRow {
   name: string;
   composition: string;
   manufacturer?: string;
-  mrp?: string;
-  price?: string;
   packaging?: string;
   prescriptionRaw?: string;
-  rowNumber: number;
 }
 
 interface NormalizedSeedRow {
@@ -71,11 +68,8 @@ async function main() {
     name: normalized.name,
     composition: normalized.composition,
     ...(normalized.manufacturer ? { manufacturer: normalized.manufacturer } : {}),
-    ...(row.mrp ? { mrp: row.mrp.trim() } : {}),
-    ...(row.price ? { price: row.price.trim() } : {}),
     ...(row.packaging ? { packaging: cleanText(row.packaging) } : {}),
-    ...(row.prescription ? { prescriptionRaw: cleanPrescription(row.prescription) } : {}),
-    rowNumber: index + 2
+    ...(row.prescription ? { prescriptionRaw: normalizedPrescription(row, normalized) } : {})
   }));
 
   await mkdir(resolve(root, "data/generated"), { recursive: true });
@@ -110,7 +104,7 @@ async function fileExists(path: string): Promise<boolean> {
 
 function normalizeSeedRow(row: SeedMedicineRow): NormalizedSeedRow {
   const name = cleanText(row.drugName ?? row.name ?? "");
-  let composition = cleanComposition(row.composition ?? "");
+  let composition = cleanComposition(row.composition ?? "", row.manufacturer);
   let manufacturer = cleanManufacturer(row.manufacturer);
 
   if (isFormOnly(manufacturer)) {
@@ -127,7 +121,8 @@ function normalizeSeedRow(row: SeedMedicineRow): NormalizedSeedRow {
 }
 
 function isExcludedCatalogRow(row: NormalizedSeedRow): boolean {
-  return /\btata\b/i.test(row.name + " " + row.manufacturer);
+  return /\btata\b/i.test(row.name + " " + row.manufacturer)
+    || /\bpholcodine\b/i.test(row.composition);
 }
 
 function splitManufacturerPrefix(composition: string): { manufacturer: string; composition: string } | undefined {
@@ -170,10 +165,14 @@ function cleanText(value: string | undefined): string {
   return (value ?? "").replace(/\s+/g, " ").trim();
 }
 
-function cleanComposition(value: string | undefined): string {
-  return cleanText(value)
+function cleanComposition(value: string | undefined, manufacturer?: string): string {
+  const cleaned = cleanText(value)
     .replace(/(^|\+\s*)Acid\s+\(/gi, "$1Mefenamic Acid (")
     .replace(/(^|\+\s*)Maleate\s+\(/gi, "$1Chlorpheniramine Maleate (");
+  if (/^Hydrobromide\s*\(/i.test(cleaned) && /Dextromethorphan\s*$/i.test(manufacturer ?? "")) {
+    return "Dextromethorphan " + cleaned;
+  }
+  return cleaned;
 }
 
 function cleanManufacturer(value: string | undefined): string {
@@ -193,6 +192,14 @@ function cleanPrescription(value: string | undefined): string {
   if (cleaned === "True") return "Prescription Required";
   if (cleaned === "False") return "Not mentioned";
   return cleaned;
+}
+
+function normalizedPrescription(row: SeedMedicineRow, normalized: NormalizedSeedRow): string {
+  const productText = `${normalized.name} ${row.packaging ?? ""}`;
+  // Keep the regulator-supported adult 10mg lozenge exception narrower than other dextromethorphan forms.
+  const isAdultDextromethorphanLozenge = /lozenges?/i.test(productText)
+    && /^Dextromethorphan Hydrobromide \(10mg\)$/i.test(normalized.composition);
+  return isAdultDextromethorphanLozenge ? "Not Mentioned" : cleanPrescription(row.prescription);
 }
 
 await main();

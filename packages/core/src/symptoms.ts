@@ -4,7 +4,7 @@ export const symptoms: Symptom[] = [
   {
     id: "cough",
     label: "Cough",
-    aliases: ["khansi", "dry cough", "wet cough", "productive cough"],
+    aliases: ["khansi", "general cough", "unsure cough type"],
     redFlagTerms: ["blood", "breathless", "chest pain"]
   },
   {
@@ -374,10 +374,16 @@ export function searchSymptoms(query: string, limit = 8): Symptom[] {
 
   return symptoms
     .map((symptom) => {
-      const terms = [symptom.label, ...symptom.aliases].map(normalize);
-      const exactPrefix = terms.some((term) => term.startsWith(normalized));
-      const contains = terms.some((term) => term.includes(normalized));
-      const score = exactPrefix ? 3 : contains ? 2 : fuzzyMatch(terms, normalized) ? 1 : 0;
+      const label = normalize(symptom.label);
+      const aliases = symptom.aliases.map(normalize);
+      const terms = [label, ...aliases];
+      const score = label === normalized ? 7
+        : aliases.includes(normalized) ? 6
+          : label.startsWith(normalized) ? 5
+            : aliases.some((alias) => alias.startsWith(normalized)) ? 4
+              : label.includes(normalized) ? 3
+                : aliases.some((alias) => alias.includes(normalized)) ? 2
+                  : fuzzyMatch(terms, normalized) ? 1 : 0;
       return { symptom, score };
     })
     .filter((item) => item.score > 0)

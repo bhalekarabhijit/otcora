@@ -53,4 +53,21 @@ describe("recommendation API", () => {
     expect(payload.pharmacistGroups.length).toBeGreaterThan(0);
     expect(payload.pharmacistGroups.every((group: { products: unknown[] }) => group.products.length === 0)).toBe(true);
   });
+
+  it("returns a public cough clarification instead of empty medicine sections", async () => {
+    const response = await POST(request(JSON.stringify({
+      symptomIds: ["cough"],
+      context: { adultConfirmed: true }
+    })));
+    const payload = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(payload.clarification.options.map((option: { symptom: { id: string } }) => option.symptom.id)).toEqual([
+      "dry-cough",
+      "chest-congestion"
+    ]);
+    expect(payload.clarification.selfCare.length).toBeGreaterThan(0);
+    expect(payload.otcGroups).toHaveLength(0);
+    expect(JSON.stringify(payload.clarification).toLowerCase()).not.toContain("source");
+  });
 });

@@ -100,6 +100,27 @@ export interface TreatmentPlan {
   steps: TreatmentPlanStep[];
 }
 
+export interface RecommendationSelfCareItem {
+  title: string;
+  description: string;
+  evidence: "supportive-care" | "limited-evidence";
+}
+
+export interface RecommendationClarificationOption {
+  symptom: Symptom;
+  title: string;
+  description: string;
+}
+
+export interface RecommendationClarification {
+  id: string;
+  title: string;
+  question: string;
+  description: string;
+  options: RecommendationClarificationOption[];
+  selfCare: RecommendationSelfCareItem[];
+}
+
 export interface RecommendationResponse {
   otc: RecommendationItem[];
   prescription: RecommendationItem[];
@@ -108,6 +129,7 @@ export interface RecommendationResponse {
   pharmacistGroups: CompositionRecommendationGroup[];
   prescriptionGroups: CompositionRecommendationGroup[];
   treatmentPlans: TreatmentPlan[];
+  clarification?: RecommendationClarification;
   followUpSymptoms: Symptom[];
   seekCare: SeekCareItem[];
   selfCareBlocked: boolean;
