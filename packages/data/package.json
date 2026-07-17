@@ -11,7 +11,12 @@
     "sitemap": "tsx src/cli/sitemap.ts",
     "import-csv": "tsx src/cli/import-csv.ts",
     "scrape-missing": "tsx src/cli/scrape-missing.ts",
-    "build-core-catalog": "tsx src/cli/build-core-catalog.ts"
+    "build-core-catalog": "tsx src/cli/build-core-catalog.ts",
+    "export-abdm-v2": "tsx src/cli/export-abdm-v2.ts",
+    "enrich-abdm-generics-v2": "tsx src/cli/enrich-abdm-generics-v2.ts",
+    "enrich-abdm-brands-v2": "tsx src/cli/enrich-abdm-brands-v2.ts",
+    "enrich-abdm-substances-v2": "tsx src/cli/enrich-abdm-substances-v2.ts",
+    "finalize-abdm-v2": "tsx src/cli/finalize-abdm-v2.ts"
   },
   "dependencies": {
     "@otcora/core": "*"

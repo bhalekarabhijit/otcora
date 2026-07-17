@@ -18,7 +18,12 @@
     "data:sitemap": "npm run sitemap -w @otcora/data",
     "data:import-csv": "npm run import-csv -w @otcora/data",
     "data:scrape-missing": "npm run scrape-missing -w @otcora/data",
-    "data:build-core-catalog": "npm run build-core-catalog -w @otcora/data"
+    "data:build-core-catalog": "npm run build-core-catalog -w @otcora/data",
+    "data:export-abdm-v2": "npm run export-abdm-v2 -w @otcora/data --",
+    "data:enrich-abdm-generics-v2": "npm run enrich-abdm-generics-v2 -w @otcora/data --",
+    "data:enrich-abdm-brands-v2": "npm run enrich-abdm-brands-v2 -w @otcora/data --",
+    "data:enrich-abdm-substances-v2": "npm run enrich-abdm-substances-v2 -w @otcora/data --",
+    "data:finalize-abdm-v2": "npm run finalize-abdm-v2 -w @otcora/data --"
   },
   "devDependencies": {
     "@types/node": "^22.10.2",
